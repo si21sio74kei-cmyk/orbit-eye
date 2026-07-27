@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+env/
+venv/
+.venv/
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Project
+*.glb
+*.blend1
+.satellite_cache.json
+*.mp4
+*.log
+srv_out.log
+srv_err.log

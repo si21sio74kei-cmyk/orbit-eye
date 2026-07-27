@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global Deep Space Monitor v12.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>if(!window.THREE)document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/static/css/datav.css">
+<style>
+/* ═══════════════════════════════════════════════════
+   CINEMATIC STARTUP SCREEN — 科幻電影級開幕
+   ═══════════════════════════════════════════════════ */
+#loading-overlay {
+  position:fixed;inset:0;z-index:99999;
+  background:radial-gradient(ellipse at center,#020d1f 0%,#010510 55%,#000308 100%);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;
+  transition:opacity 0.8s ease, visibility 0.8s ease;
+}
+#loading-overlay.hidden { opacity:0; pointer-events:none; visibility:hidden; }
+#startup-canvas { position:absolute;inset:0;z-index:1; }
+#startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0; }
+#startup-logo { display:flex;align-items:baseline;gap:16px;position:relative;margin-bottom:6px; }
+.startup-title-main {
+  font-family:'Orbitron','Inter',sans-serif;font-size:clamp(48px,11vw,82px);
+  letter-spacing:16px;color:#fff;position:relative;font-weight:900;
+  text-shadow:0 0 30px rgba(56,189,248,.4),0 0 60px rgba(56,189,248,.25),0 0 120px rgba(56,189,248,.15),0 0 200px rgba(56,189,248,.08),0 0 10px #fff,0 2px 0 rgba(0,0,0,.5);
+  animation:titleBreath 3s ease-in-out infinite;
+}
+.startup-title-main::before {
+  content:attr(data-text);position:absolute;top:0;left:0;width:100%;height:100%;
+  color:transparent;background:linear-gradient(180deg,#38bdf8 0%,#818cf8 50%,#38bdf8 100%);
+  -webkit-background-clip:text;background-clip:text;opacity:.45;filter:blur(1.5px);
+  animation:holoShift 4s ease-in-out infinite;
+}
+.startup-title-main::after {
+  content:attr(data-text);position:absolute;top:0;left:0;width:100%;height:100%;
+  color:transparent;background:linear-gradient(180deg,#c084fc 0%,#f472b6 50%,#c084fc 100%);
+  -webkit-background-clip:text;background-clip:text;opacity:.2;
+  clip-path:polygon(0 15%,100% 10%,100% 30%,0 35%,0 55%,100% 50%,100% 70%,0 75%);
+  animation:glitchStutter 3.5s infinite steps(1) alternate;
+}
+@keyframes titleBreath {
+  0%,100%{text-shadow:0 0 30px rgba(56,189,248,.4),0 0 60px rgba(56,189,248,.25),0 0 120px rgba(56,189,248,.15),0 0 200px rgba(56,189,248,.08),0 0 10px #fff}
+  50%{text-shadow:0 0 50px rgba(56,189,248,.6),0 0 90px rgba(56,189,248,.4),0 0 160px rgba(56,189,248,.25),0 0 260px rgba(56,189,248,.12),0 0 16px #fff}
+}
+@keyframes holoShift {
+  0%,100%{opacity:.45;filter:blur(1.5px)} 50%{opacity:.6;filter:blur(2px)}
+}
+@keyframes glitchStutter {
+  0%{transform:translate(0);opacity:.2} 25%{transform:translate(-4px,2px);opacity:.35}
+  50%{transform:translate(3px,-1px);opacity:.15} 75%{transform:translate(2px,1px);opacity:.3}
+  100%{transform:translate(-2px,-1px);opacity:.2}
+}
+.startup-ver {
+  font-family:'Share Tech Mono',monospace;font-size:12px;color:#38bdf8;
+  letter-spacing:5px;border:1px solid rgba(56,189,248,.35);padding:5px 12px;border-radius:3px;
+  background:rgba(56,189,248,.04);box-shadow:0 0 20px rgba(56,189,248,.1),inset 0 0 8px rgba(56,189,248,.03);
+  animation:fadeInUp .8s .2s both;align-self:flex-start;margin-top:8px;
+}
+.startup-divider {
+  width:180px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(56,189,248,.4) 20%,#38bdf8 50%,rgba(56,189,248,.4) 80%,transparent);
+  margin:0 auto 8px auto;box-shadow:0 0 16px rgba(56,189,248,.3);animation:fadeInUp .8s .4s both;
+}
+.startup-subtitle-cn {
+  font-family:'Inter','Microsoft YaHei',sans-serif;font-size:13px;letter-spacing:8px;
+  color:rgba(255,255,255,.75);text-shadow:0 0 10px rgba(56,189,248,.3);
+  animation:fadeInUp .8s .5s both;font-weight:300;
+}
+.startup-sub-en {
+  font-size:8px;letter-spacing:4px;color:rgba(56,189,248,.28);
+  font-family:'Share Tech Mono',monospace;animation:fadeInUp .8s .6s both;
+}
+.startup-corner-frame { position:absolute;inset:40px;z-index:0;pointer-events:none; }
+.startup-corner-frame .corner {
+  position:absolute;width:40px;height:40px;border-color:rgba(56,189,248,.25);
+  animation:cornerGlow 3s ease-in-out infinite;
+}
+.startup-corner-frame .corner.tl{top:0;left:0;border-left:1px solid;border-top:1px solid;}
+.startup-corner-frame .corner.tr{top:0;right:0;border-right:1px solid;border-top:1px solid;animation-delay:.8s;}
+.startup-corner-frame .corner.bl{bottom:0;left:0;border-left:1px solid;border-bottom:1px solid;animation-delay:.4s;}
+.startup-corner-frame .corner.br{bottom:0;right:0;border-right:1px solid;border-bottom:1px solid;animation-delay:1.2s;}
+@keyframes cornerGlow {
+  0%,100%{border-color:rgba(56,189,248,.15)} 50%{border-color:rgba(56,189,248,.5)}
+}
+#startup-progress-ring {
+  width:80px;height:80px;position:relative;margin:12px 0 6px 0;animation:fadeInUp .8s .7s both;
+}
+#startup-progress-ring svg{transform:rotate(-90deg)}
+#startup-progress-ring .bg{fill:none;stroke:rgba(56,189,248,.05);stroke-width:1.5}
+#startup-progress-ring .fg{fill:none;stroke:#38bdf8;stroke-width:1.5;stroke-linecap:round;
+  stroke-dasharray:220;stroke-dashoffset:220;transition:stroke-dashoffset .5s ease;
+  filter:drop-shadow(0 0 6px #38bdf8) drop-shadow(0 0 14px rgba(56,189,248,.4));}
+#startup-progress-text {
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:'Share Tech Mono',monospace;font-size:14px;color:#38bdf8;letter-spacing:2px;
+}
+.startup-status {
+  font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(56,189,248,.7);
+  letter-spacing:3px;margin-top:6px;animation:fadeInUp .8s .8s both;
+  display:flex;align-items:center;gap:8px;
+}
+.startup-status .status-blink {
+  width:4px;height:4px;border-radius:50%;background:#34d399;
+  box-shadow:0 0 6px #34d399,0 0 12px rgba(52,211,153,.3);
+  animation:dotBlinkFast .7s ease-in-out infinite;
+}
+@keyframes dotBlinkFast {
+  0%,100%{opacity:.3;box-shadow:0 0 4px #34d399}
+  50%{opacity:1;box-shadow:0 0 8px #34d399,0 0 18px rgba(52,211,153,.5)}
+}
+.startup-data-streams { display:flex;gap:18px;margin-top:16px;animation:fadeInUp .8s .9s both; }
+.startup-data-streams .stream {
+  display:flex;align-items:center;gap:4px;
+  font-family:'Share Tech Mono',monospace;font-size:7px;color:rgba(56,189,248,.28);letter-spacing:1px;
+}
+.startup-data-streams .stream .s-dot {
+  width:3px;height:3px;border-radius:50%;background:#38bdf8;animation:streamPulse 1.5s ease-in-out infinite;
+}
+.startup-data-streams .stream:nth-child(2) .s-dot{animation-delay:.4s}
+.startup-data-streams .stream:nth-child(3) .s-dot{animation-delay:.8s}
+.startup-data-streams .stream:nth-child(4) .s-dot{animation-delay:1.2s}
+@keyframes streamPulse {
+  0%,100%{opacity:.2;box-shadow:0 0 2px #38bdf8}
+  50%{opacity:1;box-shadow:0 0 8px #38bdf8,0 0 16px rgba(56,189,248,.4)}
+}
+.startup-scanline {
+  position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.025) 3px,rgba(0,0,0,.025) 6px);
+}
+.startup-hscan {
+  position:absolute;left:0;right:0;height:1px;z-index:4;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(56,189,248,.25) 30%,rgba(56,189,248,.5) 50%,rgba(56,189,248,.25) 70%,transparent);
+  box-shadow:0 0 30px rgba(56,189,248,.3);animation:hScanMove 2.8s ease-in-out infinite;
+}
+@keyframes hScanMove { 0%{top:15%} 50%{top:85%} 100%{top:15%} }
+@keyframes fadeInUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+
+/* Storm alert banner */
+#storm-alert-banner {
+  position:fixed;top:0;left:60px;right:0;z-index:91;
+  background:rgba(120,0,0,.92);border-bottom:1px solid rgba(255,40,40,.3);
+  color:#ff4444;text-align:center;font-family:'Share Tech Mono',monospace;font-size:9px;
+  letter-spacing:2px;padding:6px 10px;display:none;
+  animation:alertFlash .5s ease-in-out infinite;
+  text-shadow:0 0 10px rgba(255,0,0,.6);backdrop-filter:blur(4px);
+}
+@keyframes alertFlash { 0%,100%{background:rgba(120,0,0,.92)} 50%{background:rgba(180,0,0,.95)} }
+
+/* Help guide */
+#guide-toggle{position:fixed;top:12px;right:12px;z-index:95;width:28px;height:28px;border-radius:50%;border:1px solid rgba(56,189,248,.1);background:rgba(2,10,28,.92);color:#38bdf8;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .3s;backdrop-filter:blur(8px);}
+#guide-toggle:hover{border-color:#38bdf8;box-shadow:0 0 16px rgba(56,189,248,.2);}
+#guide-toggle.on{background:rgba(56,189,248,.12);border-color:#38bdf8;}
+#guide-panel{position:fixed;top:48px;right:12px;z-index:94;width:290px;max-height:75vh;overflow-y:auto;background:rgba(2,10,28,.97);border:1px solid rgba(56,189,248,.1);border-radius:6px;padding:16px;font-size:10px;line-height:1.8;backdrop-filter:blur(16px);display:none;box-shadow:0 8px 48px rgba(0,0,0,.7);font-family:'Inter','Microsoft YaHei',sans-serif;}
+#guide-panel.show{display:block;animation:fadeIn .25s ease;}
+#guide-panel h4{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#38bdf8;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(56,189,248,.1);}
+#guide-panel .section{color:rgba(56,189,248,.7);font-size:9px;letter-spacing:1px;margin-top:10px;margin-bottom:4px;font-weight:600;}
+#guide-panel .item{color:#9ca3af;font-size:9px;padding:2px 0;display:flex;gap:6px;}
+#guide-panel .item .key{color:#38bdf8;min-width:80px;font-family:'Share Tech Mono',monospace;font-size:8px;}
+#guide-panel .item .desc{flex:1;}
+#guide-panel .tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:7px;margin-right:3px;letter-spacing:1px;}
+#guide-panel .tag.gesture{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:#38bdf8;}
+#guide-panel .tag.mouse{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:#34d399;}
+#guide-panel .tag.key{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:#fbbf24;}
+#guide-panel .tag.special{background:rgba(192,132,252,.1);border:1px solid rgba(192,132,252,.25);color:#c084fc;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══════════════════════════════════════════════════
+   PAGE-SPECIFIC COLOR THEMES
+   ═══════════════════════════════════════════════════ */
+#pg-0 .section-divider span { color:#7dd3fc; text-shadow:0 0 8px rgba(56,189,248,.3); }
+#pg-0 header { border-color:rgba(56,189,248,.15) !important; }
+#pg-1 { background:radial-gradient(ellipse at 50% 40%,rgba(251,146,30,.07) 0%,rgba(2,11,26,1) 70%) !important; }
+#pg-1 .pnl { background:rgba(16,9,2,.96) !important; border-color:rgba(251,191,36,.2) !important; }
+#pg-1 .pnl.corner::before, #pg-1 .pnl.corner::after { border-color:rgba(251,191,36,.45) !important; }
+#pg-1 .pnl:hover { border-color:rgba(251,191,36,.4) !important; }
+.launch-card { width:540px; text-align:center; padding:52px 44px; }
+.launch-card .title {
+  font-family:'Orbitron',sans-serif; font-size:52px; letter-spacing:18px;
+  color:#fbbf24; font-weight:900;
+  text-shadow:0 0 30px rgba(251,146,30,.55),0 0 80px rgba(251,146,30,.22),0 0 140px rgba(251,146,30,.08);
+  animation:solarTitlePulse 3s ease-in-out infinite;
+}
+@keyframes solarTitlePulse {
+  0%,100%{text-shadow:0 0 30px rgba(251,146,30,.55),0 0 80px rgba(251,146,30,.22)}
+  50%{text-shadow:0 0 50px rgba(251,146,30,.75),0 0 110px rgba(251,146,30,.35),0 0 180px rgba(251,146,30,.1)}
+}
+.launch-card .subtitle { font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:7px; color:#fcd34d; margin-top:12px; font-weight:600; }
+.launch-card .divider {
+  width:220px; height:1px; margin:24px auto;
+  background:linear-gradient(90deg,transparent,rgba(251,191,36,.55),rgba(251,146,30,.55),transparent);
+  box-shadow:0 0 12px rgba(251,146,30,.25);
+}
+.launch-card .desc { font-size:13px; color:#d4a574; line-height:2.2; margin-bottom:28px; font-weight:300; }
+.launch-card .launch-btn {
+  display:inline-block; padding:14px 40px; font-family:'Orbitron',sans-serif; font-size:14px; letter-spacing:5px;
+  color:#fbbf24; text-decoration:none; border:2px solid rgba(251,191,36,.45);
+  background:rgba(251,191,36,.08); border-radius:6px; transition:all .35s ease; text-transform:uppercase;
+}
+.launch-card .launch-btn:hover {
+  background:rgba(251,191,36,.18); border-color:rgba(251,191,36,.75);
+  box-shadow:0 0 48px rgba(251,146,30,.4),0 0 96px rgba(251,146,30,.1); transform:scale(1.04);
+}
+.launch-card .hint { font-size:8px; color:rgba(251,191,36,.3); font-family:'Share Tech Mono',monospace; letter-spacing:2px; margin-top:18px; }
+
+
+/* Toast notification */
+#toast { position:fixed; bottom:120px; left:50%; transform:translateX(-50%); z-index:999; padding:12px 24px; border-radius:6px; font-family:'Share Tech Mono',monospace; font-size:10px; opacity:0; transition:opacity .3s; pointer-events:none; background:rgba(2,10,28,.94); border:1px solid #38bdf8; color:#e2e8f0; }
+#toast.on { opacity:1; } #toast.err { border-color:#f87171; color:#f87171; }
+</style>
+</head>
+<body>
+
+<div class="nebula"><div class="orb"></div><div class="orb"></div></div>
+
+<div id="loading-overlay">
+  <canvas id="startup-canvas"></canvas>
+  <div class="startup-corner-frame">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+  </div>
+  <div class="startup-hscan"></div>
+  <div id="startup-content">
+    <div id="startup-logo">
+      <span class="startup-title-main" data-text="DSM-7">DSM-7</span>
+      <span class="startup-ver">v12.0</span>
+    </div>
+    <div class="startup-divider"></div>
+    <div class="startup-subtitle-cn">全 球 深 空 環 境 智 能 監 測 平 台</div>
+    <div class="startup-sub-en">GLOBAL DEEP SPACE ENVIRONMENT INTELLIGENT MONITOR</div>
+    <div id="startup-progress-ring">
+      <svg width="80" height="80" viewBox="0 0 80 80">
+        <circle class="bg" cx="40" cy="40" r="35"/>
+        <circle class="fg" id="startup-progress-circle" cx="40" cy="40" r="35"/>
+      </svg>
+      <div id="startup-progress-text">0%</div>
+    </div>
+    <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
+    <div class="startup-data-streams">
+      <div class="stream"><span class="s-dot"></span>DSN-14</div>
+      <div class="stream"><span class="s-dot"></span>铯钟同步</div>
+      <div class="stream"><span class="s-dot"></span>量子链路</div>
+      <div class="stream"><span class="s-dot"></span>深空阵列</div>
+    </div>
+  </div>
+  <div class="startup-scanline"></div>
+</div>
+
+<button id="guide-toggle" onclick="toggleGuide()">?</button>
+<div id="guide-panel">
+  <h4>📖 操作教程 — DSM-7 全球深空监测 v12</h4>
+  <div class="section">⌨️ 页面导航</div>
+  <div class="item"><span class="key"><span class="tag key">1 / 2</span></span><span class="desc">切换到遥测 / 太阳系页面</span></div>
+  <div class="item"><span class="key"><span class="tag key">Ctrl + R</span></span><span class="desc">强制刷新全部遥测数据</span></div>
+  <div class="item"><span class="key"><span class="tag mouse">左侧导航栏</span></span><span class="desc">点击 DS / SS 按钮切换页面</span></div>
+  <div class="section">📡 遥测仪表盘（Page 0 · TELEMETRY）</div>
+  <div class="item"><span class="desc" style="color:var(--dim);">左上 — 3D 地球仪：实时 ISS 位置 + 测控链路 + 轨道曲线</span></div>
+  <div class="item"><span class="desc" style="color:var(--dim);">右上 — 发射任务 / 天体影像 · 每 2–5 分钟自动刷新</span></div>
+  <div class="item"><span class="desc" style="color:var(--dim);">中部 — 太阳风暴 / 大气环境 / 近地小行星 · 悬浮卡片 hover 微倾</span></div>
+  <div class="item"><span class="desc" style="color:var(--dim);">底部 — 天文图 / 火星天气 / 航天新闻 / 系外行星</span></div>
+  <div class="section">⚡ 太阳风暴警报联动</div>
+  <div class="item"><span class="desc" style="color:var(--warn);">风暴激活时：卡片红色闪烁 · 顶部全屏警报横幅 · Web Audio 警报</span></div>
+  <div class="section">🎨 视觉特性</div>
+  <div class="item"><span class="desc">CRT 扫描线覆盖层 — 复古监视器质感 · 悬浮卡片 tilt 3D 旋转 · 电影级粒子启动画面</span></div>
+</div>
+
+<nav id="nav">
+  <span class="logo">DSM</span>
+  <button class="nav-t on" data-pg="0"><span class="tip">TELEMETRY</span>DS</button>
+  <button class="nav-t" data-pg="1"><span class="tip">SOLAR SYS</span>SS</button>
+  <div id="nav-ind"></div>
+  <span id="demo-badge">离线</span>
+</nav>
+
+<div id="pages">
+
+<!-- ═══════════ PAGE 0: TELEMETRY ═══════════ -->
+<div class="pg on" id="pg-0">
+  <div style="padding:6px 8px 0 8px;">
+    <header style="background:rgba(3,14,33,.98);border:1px solid var(--border);border-radius:var(--radius);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(16px);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity=".6"/><circle cx="14" cy="14" r="4" fill="var(--primary)" opacity=".8"/></svg>
+        <div>
+          <div style="font-family:var(--title);font-size:13px;letter-spacing:5px;color:#fff;text-shadow:0 0 16px rgba(56,189,248,.3);">GLOBAL · DEEP SPACE MONITOR</div>
+          <div style="font-size:9px;color:var(--dim);letter-spacing:3px;">SATELLITE TELEMETRY CONTROL STATION v12.0</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div id="clk" style="font-family:var(--mono);font-size:12px;color:#fff;letter-spacing:1px;"></div>
+        <span style="font-size:9px;color:var(--dim);">HKT</span>
+        <div style="width:1px;height:24px;background:rgba(56,189,248,.1);"></div>
+        <span style="width:8px;height:8px;background:var(--good);border-radius:50%;display:inline-block;box-shadow:0 0 8px var(--good);"></span>
+        <span style="font-family:var(--mono);font-size:8px;color:var(--good);letter-spacing:2px;">SYS NOMINAL</span>
+        <div style="width:1px;height:24px;background:rgba(56,189,248,.1);"></div>
+        <button onclick="refreshAll()" class="btn text-[8px]" style="padding:4px 10px;">REFRESH</button>
+      </div>
+    </header>
+    <div class="section-divider"><span>📡 即时遥测数据 · REAL-TIME TELEMETRY</span></div>
+  </div>
+
+  <div class="dashboard-grid">
+    <!-- 1. 3D地球追踪 globe -->
+    <div class="pnl corner globe-cell overflow-hidden border-wave">
+      <div class="pt"><span>🌍 地球 3D 遥测追踪</span><span class="text-[8px] text-sky-400 border border-sky-700/40 px-1.5 py-0.5 bg-sky-950/20 font-mono tracking-wider rounded">ISS Now</span></div>
+      <div style="height:calc(100% - 34px);position:relative;"><div id="globe-ct" style="width:100%;height:100%;"></div>
+        <div style="position:absolute;bottom:6px;left:6px;right:6px;background:rgba(2,10,24,.9);padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:var(--mono);">
+          <span class="d">ISS坐标:</span><span id="gl-pos" class="text-white font-bold">--</span>
+          <span style="color:var(--dim);margin:0 8px;">|</span><span class="d">距观测点:</span><span id="gl-dst" class="w font-bold">--</span>
+        </div>
+      </div>
+    </div>
+    <!-- 2. 国际空间站 ISS -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="iss-panel">
+      <div class="pt"><span>🛰 国际空间站 ISS 轨道</span><span id="iss-tag" class="text-[8px] text-sky-400 border border-sky-700/40 px-1.5 py-0.5 bg-sky-950/20 font-mono tracking-wider rounded">实时</span></div>
+      <div class="p-3"><div id="iss-loading" class="shimmer text-[10px] d py-2">接收 ISS 遥测数据...</div>
+      <div id="iss-content" class="hidden space-y-2">
+        <div class="bg-black/40 p-2.5 border border-[var(--border)] space-y-1 text-[11px] rounded">
+          <p class="flex justify-between"><span class="l">纬度 / 经度:</span><span class="text-white font-bold"><span id="iss-lat">--</span>° <span id="iss-lon">--</span>°</span></p>
+          <p class="flex justify-between text-[10px]"><span class="d">UTC 时间:</span><span id="iss-time" class="w">--</span></p>
+        </div>
+        <div id="mo-panel" class="p-2 border transition-all duration-300 text-[11px] rounded" style="border-color:rgba(56,189,248,.2);">
+          <p class="flex justify-between"><span class="text-sky-400">测控链路:</span><span id="mo-dist" class="text-white font-bold">--</span></p>
+          <p class="flex justify-between text-[10px] mt-0.5"><span class="text-sky-400">天线状态:</span><span id="mo-link" class="text-gray-500">待机</span></p>
+        </div>
+        <div id="iss-pass" class="text-[10px] hidden"></div>
+        <div id="iss-pass-detail" class="hidden mt-2 border-t border-[var(--border)] pt-2 space-y-1">
+          <p class="text-[8px] tracking-wider" style="color:var(--label);">📡 过境窗口预测</p>
+          <div class="space-y-1 max-h-[100px] overflow-y-auto" id="iss-pass-list"></div>
+          <p class="flex justify-between text-[9px]"><span class="d">当前距离:</span><span id="iss-pass-dist" class="w">--</span></p>
+        </div>
+      </div></div>
+    </div>
+    <!-- 3. 航天发射（合并：SpaceX最新 + 即将发射） -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="launch-panel">
+      <div class="pt"><span>🚀 航天发射任务</span><span class="text-[8px] text-purple-400 border border-purple-700/40 px-1.5 py-0.5 bg-purple-950/20 font-mono tracking-wider rounded">SpaceDevs</span></div>
+      <div class="p-3"><div id="launch-loading" class="shimmer text-[10px] d py-2">获取发射数据...</div>
+      <div id="launch-content" class="hidden space-y-2">
+        <div class="bg-black/40 p-2.5 border border-[var(--border)] rounded">
+          <span class="text-[8px] d block tracking-wider">最新任务</span>
+          <h3 id="sx-name" class="text-sm font-bold text-white tracking-wide mt-0.5">--</h3>
+          <p class="flex justify-between text-[10px] mt-1"><span class="l">发射时间:</span><span id="sx-date" class="text-gray-300">--</span></p>
+          <div class="bg-black/30 p-1.5 mt-1.5 text-[10px] text-gray-400 border border-[var(--border)] h-12 overflow-y-auto rounded"><p id="sx-details">--</p></div>
+        </div>
+        <div>
+          <span class="text-[8px] d block tracking-wider mb-1.5">即将发射</span>
+          <div class="space-y-1 max-h-[120px] overflow-y-auto text-[10px]" id="launch-list"></div>
+        </div>
+      </div></div>
+    </div>
+    <!-- 4. 天体影像 Space-Body -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="space-panel">
+      <div class="pt"><span>🔭 深空天体影像</span><select id="planet-select" class="sel text-[9px]"><option value="earth">🌍 地球</option><option value="mars">🔴 火星</option><option value="moon">🌙 月球</option></select><span class="text-[8px] text-purple-400 border border-purple-700/40 px-1.5 py-0.5 bg-purple-950/20 font-mono tracking-wider rounded">NASA EPIC</span></div>
+      <div class="p-3"><div id="space-loading" class="shimmer text-[10px] d py-2">下载天体影像...</div>
+      <div id="space-content" class="hidden space-y-2">
+        <div class="overflow-hidden border border-[var(--border)] bg-black relative rounded" style="min-height:155px;">
+          <div id="img-spinner" class="absolute inset-0 flex items-center justify-center d text-[10px] z-0">解码中...</div>
+          <img id="space-img" src="" alt="" class="w-full h-auto object-cover relative z-10 opacity-0 transition duration-700 rounded" onload="this.classList.remove('opacity-0');document.getElementById('img-spinner').classList.add('hidden');" onerror="this.src='https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?w=500';">
+        </div>
+        <p class="text-[10px] border-b border-gray-800/40 pb-1 flex justify-between"><span class="l">拍摄时间:</span><span id="space-date" class="text-gray-300">--</span></p>
+        <p class="text-[10px] text-emerald-400 leading-relaxed" id="space-cap">--</p>
+      </div></div>
+    </div>
+    <!-- 5. 地面环境 Weather -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="weather-panel">
+      <div class="pt"><span>🌡 地面大气环境</span><select id="city-select" class="sel text-[9px]"><optgroup label="🇨🇳 大中华"><option value="澳门">🇲🇴 澳门</option><option value="香港">🇭🇰 香港</option><option value="台北">🇹🇼 台北</option><option value="广州">广州</option><option value="深圳">深圳</option><option value="北京">北京</option><option value="上海">上海</option><option value="成都">成都</option><option value="拉萨">拉萨</option><option value="乌鲁木齐">乌鲁木齐</option></optgroup><optgroup label="🌏 亚洲"><option value="东京">🇯🇵 东京</option><option value="首尔">🇰🇷 首尔</option><option value="新加坡">🇸🇬 新加坡</option><option value="曼谷">🇹🇭 曼谷</option><option value="迪拜">🇦🇪 迪拜</option><option value="新德里">🇮🇳 新德里</option></optgroup><optgroup label="🇪🇺 欧洲"><option value="伦敦">🇬🇧 伦敦</option><option value="巴黎">🇫🇷 巴黎</option><option value="柏林">🇩🇪 柏林</option><option value="莫斯科">🇷🇺 莫斯科</option></optgroup><optgroup label="🌎 美洲"><option value="纽约">🇺🇸 纽约</option><option value="洛杉矶">🇺🇸 洛杉矶</option><option value="多伦多">🇨🇦 多伦多</option><option value="圣保罗">🇧🇷 圣保罗</option></optgroup><optgroup label="🌏 大洋洲 · 非洲"><option value="悉尼">🇦🇺 悉尼</option><option value="开普敦">🇿🇦 开普敦</option></optgroup></select><span class="text-[8px] text-green-400 border border-green-700/40 px-1.5 py-0.5 bg-green-950/20 font-mono tracking-wider rounded">Open-Meteo</span></div>
+      <div class="p-3"><div id="weather-loading" class="shimmer text-[10px] d py-2">读取大气数据...</div>
+      <div id="weather-content" class="hidden space-y-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-black/40 p-2.5 border border-[var(--border)] text-center rounded"><span class="text-[10px] l block uppercase tracking-wider">天气</span><p class="text-xl font-bold w"><span id="w-status">--</span></p></div>
+          <div class="bg-black/40 p-2.5 border border-[var(--border)] text-center rounded"><span class="text-[10px] l block uppercase tracking-wider">温度</span><p class="text-xl font-bold w"><span id="w-temp">--</span>&deg;C</p></div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-black/40 p-2.5 border border-[var(--border)] text-center rounded"><span class="text-[10px] l block uppercase tracking-wider">AQI</span><p class="text-lg font-bold g"><span id="w-aqi">--</span> <span id="w-aqiname" class="text-[10px]">--</span></p></div>
+          <div class="bg-black/40 p-2.5 border border-[var(--border)] text-center rounded"><span class="text-[10px] l block uppercase tracking-wider">湿度</span><p class="text-lg font-bold w"><span id="w-humid">--</span>%</p></div>
+        </div>
+        <div class="text-[11px]"><span class="l">风力:</span><span id="w-wind" class="text-white ml-1">--</span><div class="bar"><div id="w-wind-bar" class="bar-f bg-sky-400"></div></div></div>
+      </div></div>
+    </div>
+    <!-- 6. 太空威胁（合并：太阳风暴 + 近地小行星） -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="threat-panel">
+      <div class="pt"><span>☢️ 太空威胁监测</span><span class="text-[8px] text-orange-400 border border-orange-700/40 px-1.5 py-0.5 bg-orange-950/20 font-mono tracking-wider rounded">NOAA · NASA</span></div>
+      <div class="p-3"><div id="threat-loading" class="shimmer text-[10px] d py-2">扫描太空威胁...</div>
+      <div id="threat-content" class="hidden space-y-2">
+        <div class="bg-black/40 p-2 border border-[var(--border)] rounded text-[11px]">
+          <p class="flex justify-between"><span class="l">太阳风状态:</span><span id="st-note-short" class="text-white font-bold">--</span></p>
+          <p class="flex justify-between text-[9px] mt-0.5"><span class="d">探测:</span><span id="st-ins" class="text-gray-400">--</span></p>
+        </div>
+        <div>
+          <span id="neo-alert" class="text-[8px] d block tracking-wider mb-1">近地天体</span>
+          <div class="space-y-1 max-h-[130px] overflow-y-auto text-[10px]" id="neo-list"></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="section-divider" style="margin:16px 8px 0 8px;"><span>🪐 深空探索与天文 · DEEP SPACE &amp; ASTRONOMY</span></div>
+
+  <div class="dashboard-grid">
+    <!-- 7. APOD 每日天文图 -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="apod-panel">
+      <div class="pt"><span>🖼 NASA 每日天文图</span><span class="text-[8px] text-purple-400 border border-purple-700/40 px-1.5 py-0.5 bg-purple-950/20 font-mono tracking-wider rounded">APOD</span></div>
+      <div class="p-3"><div id="apod-loading" class="shimmer text-[10px] d py-2">接收 NASA APOD...</div>
+      <div id="apod-content" class="hidden space-y-2">
+        <div class="overflow-hidden border border-[var(--border)] bg-black rounded" style="max-height:200px;">
+          <img id="apod-img" src="" alt="" class="w-full h-auto object-cover opacity-0 transition duration-700 rounded" onload="this.classList.remove('opacity-0')" onerror="this.src='https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600'">
+        </div>
+        <h3 id="apod-title" class="text-xs font-bold text-white leading-tight">--</h3>
+        <p id="apod-expl" class="text-[10px] text-gray-400 leading-relaxed max-h-12 overflow-y-auto">--</p>
+      </div></div>
+    </div>
+    <!-- 8. 火星天气 -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="mars-weather-panel">
+      <div class="pt"><span>🔴 火星地表天气</span><span class="text-[8px] text-red-400 border border-red-700/40 px-1.5 py-0.5 bg-red-950/20 font-mono tracking-wider rounded">Curiosity</span></div>
+      <div class="p-3"><div id="mars-weather-loading" class="shimmer text-[10px] d py-2">接收火星遥测...</div>
+      <div id="mars-weather-content" class="hidden space-y-2"><div id="mars-sol-list" class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]"></div></div></div>
+    </div>
+    <!-- 9. 航天新闻 -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="news-panel">
+      <div class="pt"><span>📰 全球航天新闻</span><span class="text-[8px] text-cyan-400 border border-cyan-700/40 px-1.5 py-0.5 bg-cyan-950/20 font-mono tracking-wider rounded">Spaceflight News</span></div>
+      <div class="p-3"><div id="news-loading" class="shimmer text-[10px] d py-2">获取最新头条...</div>
+      <div id="news-content" class="hidden"><div class="space-y-2 max-h-[200px] overflow-y-auto" id="news-list"></div></div></div>
+    </div>
+    <!-- 10. 系外行星 -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="exo-panel">
+      <div class="pt"><span>🪐 系外行星档案</span><span class="text-[8px] text-indigo-400 border border-indigo-700/40 px-1.5 py-0.5 bg-indigo-950/20 font-mono tracking-wider rounded">NASA Archive</span></div>
+      <div class="p-3"><div id="exo-loading" class="shimmer text-[10px] d py-2">浏览系外行星档案...</div>
+      <div id="exo-content" class="hidden"><div class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]" id="exo-list"></div></div></div>
+    </div>
+    <!-- 11. 天文观测（合并：观星预报 + 月相月历） -->
+    <div class="pnl corner tilt lg:col-span-2 border-wave" id="obs-panel">
+      <div class="pt"><span>🌙 天文观测站</span><span id="obs-grade-badge" class="text-[8px] border px-1.5 py-0.5 font-mono tracking-wider rounded" style="color:var(--good);border-color:rgba(52,211,153,.4);">--</span></div>
+      <div class="p-3"><div id="obs-loading" class="shimmer text-[10px] d py-2">分析观测条件...</div>
+      <div id="obs-content" class="hidden space-y-2">
+        <div class="grid grid-cols-2 gap-2 text-[10px]">
+          <div class="bg-black/40 p-2 border border-[var(--border)] rounded text-center">
+            <span class="text-[8px] d block">观测评分</span>
+            <p class="text-lg font-bold w mt-0.5" id="obs-score">--</p>
+          </div>
+          <div class="bg-black/40 p-2 border border-[var(--border)] rounded text-center">
+            <span class="text-[8px] d block">当前月相</span>
+            <p class="text-sm font-bold text-white mt-0.5" id="obs-moon-phase">--</p>
+            <p class="text-[8px] text-gray-500" id="obs-moon-illum">--</p>
+          </div>
+        </div>
+        <div class="text-[10px] text-gray-400"><span class="text-sky-400">可见行星:</span> <span id="obs-planets">--</span></div>
+        <div id="obs-tip" class="text-[9px] text-gray-500 italic"></div>
+        <div class="border-t border-[var(--border)] pt-2">
+          <span class="text-[8px] d block tracking-wider mb-1">📅 月相预报</span>
+          <div class="grid grid-cols-3 gap-1 text-[9px] text-center" id="mooncal-forecast"></div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span class="d">数据源: NASA · NOAA · SpaceDevs · Spaceflight News · Open-Meteo · DeepSeek</span>
+    <span id="bt-demo" style="color:var(--warn);display:none;">📡 离线演示</span>
+    <span id="health-dot" style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-size:9px;font-family:var(--mono);" title="系统状态">
+      <span id="health-led" style="width:6px;height:6px;border-radius:50%;background:#f87171;display:inline-block;"></span>
+      <span id="health-text" style="color:var(--label);">检查中</span>
+    </span>
+  </div>
+</div>
+
+<!-- ═══════════ PAGE 1: SOLAR SYSTEM LAUNCHER ═══════════ -->
+<div class="pg" id="pg-1" style="display:flex;align-items:center;justify-content:center;">
+  <div class="pnl corner launch-card">
+    <div class="title">SOLAR SYSTEM</div>
+    <div class="subtitle">GESTURE-CONTROLLED 3D EXPERIENCE</div>
+    <div class="divider"></div>
+    <p class="desc">
+      Full 3D solar system with hand gesture control via MediaPipe Hands.<br>
+      <span style="color:var(--dim);">Palm move = Rotate &bull; Swipe = Change planet &bull; Pinch = Info</span>
+    </p>
+    <a href="/solar" target="_blank" class="launch-btn">&#9654; LAUNCH SOLAR SYSTEM</a>
+    <p class="hint">Opens in new tab &bull; Requires camera permission for gesture control</p>
+  </div>
+</div>
+
+
+
+</div><!-- /pages -->
+
+<div id="storm-alert-banner">⚠️ CRITICAL GEOMAGNETIC STORM DETECTED: HIGH-ENERGY PARTICLES SWEEPING GROUND STATIONS! ⚠️</div>
+<div id="toast"></div>
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

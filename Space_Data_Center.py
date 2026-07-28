@@ -150,29 +150,43 @@ def static_files(filename):
     return send_from_directory(str(STATIC_DIR), filename)
 
 # [卡片1] ISS 实时位置 + 地面测控链路（预设观测点: 澳门）
+def _build_iss(lat, lon, ts, src):
+    """构造 ISS 接口响应（直播 / 缓存共用），避免重复代码"""
+    dist = macao_dist(lat, lon)
+    return jsonify({
+        "iss_position": {"latitude": lat, "longitude": lon},
+        "timestamp": ts,
+        "macao_dsn": {
+            "distance_km": dist,
+            "status": "LOCKED" if dist < 1500 else "BELOW_HORIZON",
+            "alarm": dist < 1500,
+            "window_km": 1500,
+        },
+        "pass_predictions": predict_passes(),
+        "orbital_info": {"period_minutes":92.68,"velocity_kms":7.66,"inclination_deg":51.6,"altitude_km":408},
+        "_source": src,
+    })
+
+# 缓存上一次成功获取的实时坐标：接口偶发失败时复用，避免绿点突然跳到澳门演示点
+last_iss = {"lat": None, "lon": None, "ts": None}
+
 @app.route('/api/space/iss')
 def api_iss():
+    global last_iss
     try:
-        data = safe_fetch("http://api.open-notify.org/iss-now.json", timeout=5)
-        if data:
-            lat = float(data["iss_position"]["latitude"])
-            lon = float(data["iss_position"]["longitude"])
-            dist = macao_dist(lat, lon)
-            return jsonify({
-                "iss_position": {"latitude": lat, "longitude": lon},
-                "timestamp": data["timestamp"],
-                "macao_dsn": {
-                    "distance_km": dist,
-                    "status": "LOCKED" if dist < 1500 else "BELOW_HORIZON",
-                    "alarm": dist < 1500,
-                    "window_km": 1500,
-                },
-                "pass_predictions": predict_passes(),
-                "orbital_info": {"period_minutes":92.68,"velocity_kms":7.66,"inclination_deg":51.6,"altitude_km":408},
-                "_source": "live",
-            })
-    except Exception: pass
-    # ── 硬编码兜底 ──
+        # 改用 HTTPS 的 wheretheiss.at（比 open-notify.org 更稳，Vercel 上不易超时）
+        data = safe_fetch("https://api.wheretheiss.at/v1/satellites/25544", timeout=6)
+        if data and "latitude" in data:
+            lat = float(data["latitude"]); lon = float(data["longitude"])
+            ts = int(data.get("timestamp", time.time()))
+            last_iss = {"lat": lat, "lon": lon, "ts": ts}
+            return _build_iss(lat, lon, ts, "live")
+    except Exception:
+        pass
+    # 实时失败 → 复用上一次真实坐标（绿点留在真实轨道，不跳澳门）
+    if last_iss["lat"] is not None:
+        return _build_iss(last_iss["lat"], last_iss["lon"], last_iss["ts"], "cached")
+    # 仅在从未取到实时数据时的最后兜底（演示）
     return jsonify({
         "iss_position": {"latitude": 22.3512, "longitude": 114.0873},
         "timestamp": int(time.time()),

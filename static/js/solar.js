@@ -989,17 +989,18 @@ function closeSatMap(){
     }
   }
   // 🌊 宇宙悬浮微动 — 平静：微弱漂流 / 风暴：电磁震颤 + 画布Glitch
-  if (window._isStormActive) {
-    // ☢️ 相机高频电磁震颤抖动（每轴 ±0.03，有故障感但不脱离视野）
-    ssCam.position.x += (Math.sin(time) * 0.005) + (Math.random() - 0.5) * 0.06;
-    ssCam.position.y += (Math.cos(time * 0.8) * 0.003) + (Math.random() - 0.5) * 0.06;
-    ssCam.position.z += (Math.random() - 0.5) * 0.04;
-    // 高能宇宙射线穿帮色调：15% 的帧触发
-    cv.style.filter = Math.random() < 0.15
-      ? 'hue-rotate(90deg) contrast(1.4) brightness(1.2) saturate(2.5)'
+  // 信息面板(planet-card)激活时一律冻结相机抖动，确保数据可读
+  if (window._isStormActive && !window._cardActive) {
+    // ☢️ 相机电磁震颤（幅度收敛，保有异变感但不晃眼）
+    ssCam.position.x += (Math.sin(time) * 0.005) + (Math.random() - 0.5) * 0.012;
+    ssCam.position.y += (Math.cos(time * 0.8) * 0.003) + (Math.random() - 0.5) * 0.012;
+    ssCam.position.z += (Math.random() - 0.5) * 0.008;
+    // 高能宇宙射线穿帮色调：5% 的帧轻微触发
+    cv.style.filter = Math.random() < 0.05
+      ? 'hue-rotate(35deg) contrast(1.12) brightness(1.05) saturate(1.3)'
       : 'none';
   } else {
-    // 🌿 平静太空：恢复温和慢速漂流
+    // 🌿 平静太空 / 面板查看中：温和慢速漂流，画面稳定
     ssCam.position.x += Math.sin(time) * 0.005;
     ssCam.position.y += Math.cos(time * 0.8) * 0.003;
     cv.style.filter = 'none';

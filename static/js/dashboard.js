@@ -252,10 +252,15 @@ const showing=pn.classList.contains('show');  if(showing){pn.classList.remove('s
 // STORM ALERT — dashboard 风暴警报联动
 // ═══════════════════════════════════════════════════
 let stormAlertAudio=null;
-function triggerStormAlert(active){  
-const banner=document.getElementById('storm-alert-banner');  if(!banner)return;  if(active){    banner.style.display='block';    
-// Web Audio 低频警报
-if(!stormAlertAudio)initStormAudio();    if(stormAlertAudio&&stormAlertAudio.context.state==='suspended')stormAlertAudio.context.resume();    if(stormAlertAudio)stormAlertAudio.play();  }else{    banner.style.display='none';    if(stormAlertAudio)stormAlertAudio.stop();  }}
+function triggerStormAlert(active){
+  if(active){
+    if(!stormAlertAudio)initStormAudio();
+    if(stormAlertAudio&&stormAlertAudio.context.state==='suspended')stormAlertAudio.context.resume();
+    if(stormAlertAudio)stormAlertAudio.play();
+  }else{
+    if(stormAlertAudio)stormAlertAudio.stop();
+  }
+}
 function initStormAudio(){  try{    
 const ctx=new(window.AudioContext||window.webkitAudioContext)();    stormAlertAudio={      context:ctx,osc:null,gain:null,playing:false,      play(){        if(this.playing)return;this.playing=true;
 const now=ctx.currentTime;        

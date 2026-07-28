@@ -29,55 +29,52 @@
 #startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0; }
 #startup-logo { display:flex;flex-direction:column;align-items:center;gap:14px;position:relative;margin-bottom:16px; }
 .startup-title-main {
-  font-family:'Orbitron','Inter',sans-serif;font-size:clamp(44px,10vw,74px);
-  letter-spacing:14px;color:#fff;position:relative;font-weight:800;
-  text-shadow:0 0 22px rgba(56,189,248,.22),0 0 2px #fff;
-  animation:fadeInUp .8s both;
+  font-family:'Inter','Microsoft YaHei',sans-serif;font-size:clamp(40px,9vw,66px);
+  letter-spacing:16px;color:#fff;font-weight:300;
+  text-shadow:0 1px 1px rgba(0,0,0,.4);
+  animation:fadeInUp .9s both;
 }
 .startup-underline {
-  width:150px;height:2px;border-radius:2px;
-  background:linear-gradient(90deg,transparent,#38bdf8 50%,transparent);
+  width:120px;height:1px;border-radius:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.85) 50%,transparent);
   transform:scaleX(0);transform-origin:center;
-  box-shadow:0 0 14px rgba(56,189,248,.7);
-  animation:underlineDraw 1.1s .35s cubic-bezier(.2,.8,.2,1) forwards;
+  animation:underlineDraw 1.2s .4s cubic-bezier(.2,.8,.2,1) forwards;
 }
 @keyframes underlineDraw { from{transform:scaleX(0);opacity:0} to{transform:scaleX(1);opacity:1} }
 .startup-ver {
-  font-family:'Share Tech Mono',monospace;font-size:12px;color:#38bdf8;
-  letter-spacing:5px;border:1px solid rgba(56,189,248,.3);padding:5px 12px;border-radius:3px;
-  background:rgba(56,189,248,.04);
-  animation:fadeInUp .8s .6s both;
+  font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,.45);
+  letter-spacing:6px;padding:5px 0;
+  animation:fadeInUp .9s .7s both;
 }
 .startup-subtitle-cn {
-  font-family:'Inter','Microsoft YaHei',sans-serif;font-size:13px;letter-spacing:8px;
-  color:rgba(255,255,255,.7);font-weight:300;animation:fadeInUp .8s .7s both;
+  font-family:'Inter','Microsoft YaHei',sans-serif;font-size:12px;letter-spacing:10px;
+  color:rgba(255,255,255,.55);font-weight:300;animation:fadeInUp .9s .8s both;
 }
 .startup-sub-en {
-  font-size:8px;letter-spacing:4px;color:rgba(56,189,248,.28);
-  font-family:'Share Tech Mono',monospace;animation:fadeInUp .8s .8s both;margin-top:4px;
+  font-size:8px;letter-spacing:5px;color:rgba(255,255,255,.25);
+  font-family:'Share Tech Mono',monospace;animation:fadeInUp .9s .9s both;margin-top:6px;
 }
 @keyframes cornerGlow {
   0%,100%{border-color:rgba(56,189,248,.15)} 50%{border-color:rgba(56,189,248,.5)}
 }
 #startup-progress-ring {
-  width:260px;margin:14px auto 6px;animation:fadeInUp .8s .9s both;
+  width:240px;margin:26px auto 4px;animation:fadeInUp .9s 1s both;
 }
 #startup-progress-text {
-  font-family:'Share Tech Mono',monospace;font-size:13px;color:#38bdf8;letter-spacing:2px;
-  text-align:center;margin-bottom:8px;
+  font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(255,255,255,.5);letter-spacing:3px;
+  text-align:center;margin-bottom:12px;
 }
 #startup-progress-ring .bar-track {
-  height:3px;width:100%;border-radius:3px;background:rgba(56,189,248,.08);overflow:hidden;
+  height:1px;width:100%;background:rgba(255,255,255,.12);overflow:hidden;
 }
 #startup-progress-circle {
-  height:3px;width:0%;border-radius:3px;
-  background:linear-gradient(90deg,#0ea5e9,#38bdf8,#7dd3fc);
-  box-shadow:0 0 10px rgba(56,189,248,.6);
+  height:1px;width:0%;
+  background:linear-gradient(90deg,#38bdf8,#7dd3fc);
   transition:width .5s ease;
 }
 .startup-status {
-  font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(56,189,248,.7);
-  letter-spacing:3px;margin-top:6px;animation:fadeInUp .8s .8s both;
+  font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,.4);
+  letter-spacing:3px;margin-top:10px;animation:fadeInUp .9s 1s both;
   display:flex;align-items:center;gap:8px;
 }
 .startup-status .status-blink {
@@ -89,43 +86,23 @@
   0%,100%{opacity:.3;box-shadow:0 0 4px #34d399}
   50%{opacity:1;box-shadow:0 0 8px #34d399,0 0 18px rgba(52,211,153,.5)}
 }
-.startup-data-streams { display:flex;gap:18px;margin-top:16px;animation:fadeInUp .8s .9s both; }
+.startup-data-streams { display:flex;gap:22px;margin-top:22px;animation:fadeInUp .9s 1.1s both; }
 .startup-data-streams .stream {
-  display:flex;align-items:center;gap:4px;
-  font-family:'Share Tech Mono',monospace;font-size:7px;color:rgba(56,189,248,.28);letter-spacing:1px;
+  display:flex;align-items:center;gap:5px;
+  font-family:'Share Tech Mono',monospace;font-size:7px;color:rgba(255,255,255,.3);letter-spacing:1px;
 }
 .startup-data-streams .stream .s-dot {
-  width:3px;height:3px;border-radius:50%;background:#38bdf8;animation:streamPulse 1.5s ease-in-out infinite;
+  width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.55);animation:streamPulse 1.5s ease-in-out infinite;
 }
 .startup-data-streams .stream:nth-child(2) .s-dot{animation-delay:.4s}
 .startup-data-streams .stream:nth-child(3) .s-dot{animation-delay:.8s}
 .startup-data-streams .stream:nth-child(4) .s-dot{animation-delay:1.2s}
 @keyframes streamPulse {
-  0%,100%{opacity:.2;box-shadow:0 0 2px #38bdf8}
-  50%{opacity:1;box-shadow:0 0 8px #38bdf8,0 0 16px rgba(56,189,248,.4)}
+  0%,100%{opacity:.25;box-shadow:0 0 2px rgba(255,255,255,.4)}
+  50%{opacity:1;box-shadow:0 0 6px rgba(255,255,255,.5)}
 }
-.startup-scanline {
-  position:absolute;inset:0;z-index:3;pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.025) 3px,rgba(0,0,0,.025) 6px);
-}
-.startup-hscan {
-  position:absolute;left:0;right:0;height:1px;z-index:4;pointer-events:none;
-  background:linear-gradient(90deg,transparent,rgba(56,189,248,.25) 30%,rgba(56,189,248,.5) 50%,rgba(56,189,248,.25) 70%,transparent);
-  box-shadow:0 0 30px rgba(56,189,248,.3);animation:hScanMove 2.8s ease-in-out infinite;
-}
-@keyframes hScanMove { 0%{top:15%} 50%{top:85%} 100%{top:15%} }
-@keyframes fadeInUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 
-/* Storm alert banner */
-#storm-alert-banner {
-  position:fixed;top:0;left:60px;right:0;z-index:91;
-  background:rgba(120,0,0,.92);border-bottom:1px solid rgba(255,40,40,.3);
-  color:#ff4444;text-align:center;font-family:'Share Tech Mono',monospace;font-size:9px;
-  letter-spacing:2px;padding:6px 10px;display:none;
-  animation:alertFlash .5s ease-in-out infinite;
-  text-shadow:0 0 10px rgba(255,0,0,.6);backdrop-filter:blur(4px);
-}
-@keyframes alertFlash { 0%,100%{background:rgba(120,0,0,.92)} 50%{background:rgba(180,0,0,.95)} }
+@keyframes fadeInUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 
 /* Help guide */
 #guide-toggle{position:fixed;top:12px;right:12px;z-index:95;width:28px;height:28px;border-radius:50%;border:1px solid rgba(56,189,248,.1);background:rgba(2,10,28,.92);color:#38bdf8;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .3s;backdrop-filter:blur(8px);}
@@ -195,7 +172,6 @@
 
 <div id="loading-overlay">
   <canvas id="startup-canvas"></canvas>
-  <div class="startup-hscan"></div>
   <div id="startup-content">
     <div id="startup-logo">
       <span class="startup-title-main" data-text="轨道之眼">轨道之眼</span>
@@ -216,7 +192,6 @@
       <div class="stream"><span class="s-dot"></span>近地小行星</div>
     </div>
   </div>
-  <div class="startup-scanline"></div>
 </div>
 
 <button id="guide-toggle" onclick="toggleGuide()">?</button>
@@ -232,9 +207,9 @@
   <div class="item"><span class="desc" style="color:var(--dim);">中部 — 太阳风暴 / 大气环境 / 近地小行星 · 悬浮卡片 hover 微倾</span></div>
   <div class="item"><span class="desc" style="color:var(--dim);">底部 — 天文图 / 火星天气 / 航天新闻 / 系外行星</span></div>
   <div class="section">⚡ 太阳风暴警报联动</div>
-  <div class="item"><span class="desc" style="color:var(--warn);">风暴激活时：卡片红色闪烁 · 顶部全屏警报横幅 · Web Audio 警报</span></div>
+  <div class="item"><span class="desc" style="color:var(--warn);">风暴激活时：卡片红色闪烁 · Web Audio 警报</span></div>
   <div class="section">🎨 视觉特性</div>
-  <div class="item"><span class="desc">CRT 扫描线覆盖层 — 复古监视器质感 · 悬浮卡片 tilt 3D 旋转 · 电影级粒子启动画面</span></div>
+  <div class="item"><span class="desc">悬浮卡片 tilt 3D 旋转 · 电影级粒子启动画面 · 极简线条加载动画</span></div>
 </div>
 
 <nav id="nav">
@@ -454,7 +429,6 @@
 
 </div><!-- /pages -->
 
-<div id="storm-alert-banner">⚠️ CRITICAL GEOMAGNETIC STORM DETECTED: HIGH-ENERGY PARTICLES SWEEPING GROUND STATIONS! ⚠️</div>
 <div id="toast"></div>
 <script src="/static/js/dashboard.js"></script>
 </body>

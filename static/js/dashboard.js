@@ -218,7 +218,7 @@ const ct = document.getElementById('globe-ct'), W=ct.clientWidth, H=ct.clientHei
 const sc = new THREE.Scene();
 const cam = new THREE.PerspectiveCamera(45,W/H,.1,1000); cam.position.set(0,0,3.8);
 const rn = new THREE.WebGLRenderer({antialias:true,alpha:true}); rn.setSize(W,H); rn.setPixelRatio(Math.min(devicePixelRatio,2));  ct.appendChild(rn.domElement);
-const ctrl = new THREE.OrbitControls(cam,rn.domElement); ctrl.enableDamping=true; ctrl.autoRotate=true; ctrl.autoRotateSpeed=.1; ctrl.minDistance=2.5; ctrl.maxDistance=6;
+const ctrl = new THREE.OrbitControls(cam,rn.domElement); ctrl.enableDamping=true; ctrl.autoRotate=false; ctrl.enablePan=false; ctrl.minDistance=2.5; ctrl.maxDistance=6; ctrl.target.set(0,0,0);
 const sg = new THREE.SphereGeometry(8,64,64);
 const sm = new THREE.ShaderMaterial({vertexShader:'varying vec3 p;void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'precision highp float;varying vec3 p;float r(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,45.5432)))*43758.5453);}void main(){float b=smoothstep(.997,1.,r(floor(p*200.)));gl_FragColor=vec4(vec3(.5,.8,1.)*b,b);}',side:THREE.BackSide,transparent:true});  sc.add(new THREE.Mesh(sg,sm));
 const eg = new THREE.SphereGeometry(1.4,64,64), em = new THREE.MeshPhongMaterial({color:0x113355});
@@ -228,7 +228,7 @@ const gm = new THREE.ShaderMaterial({vertexShader:'varying vec3 n;varying vec3 p
 const sl = new THREE.DirectionalLight(0xffffff,2); sl.position.set(5,1,3); sc.add(sl);
 const mg = new THREE.Group(); mg.position.copy(llv(22.1989,113.5491,1.41)); mg.add(new THREE.Mesh(new THREE.SphereGeometry(.03,16,16),new THREE.MeshBasicMaterial({color:0xf87171}))); sc.add(mg);
 const ig = new THREE.Group(); ig.add(new THREE.Mesh(new THREE.SphereGeometry(.024,12,12),new THREE.MeshBasicMaterial({color:0x34d399}))); sc.add(ig);
-const al = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x34d399,transparent:true,opacity:.4})); sc.add(al);
+const al = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x38bdf8,transparent:true,opacity:.8,depthTest:false,depthWrite:false})); al.renderOrder=3; sc.add(al);
 (function anim(){requestAnimationFrame(anim);if(curPg!==0)return;ctrl.update();rn.render(sc,cam);})();
 window._resumeGlobe = () => { if(!GR) return; const ct=document.getElementById('globe-ct'); const w=ct.clientWidth, h=ct.clientHeight; if(w<10||h<10){setTimeout(()=>window._resumeGlobe(),100);return;} GR.cam.aspect=w/h; GR.cam.updateProjectionMatrix(); GR.rn.setSize(w,h); };  
 window.addEventListener('resize',()=>{

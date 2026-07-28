@@ -418,26 +418,64 @@ def api_weather():
 # [卡片5] 太阳风暴监测
 @app.route('/api/space/solar-storm')
 def api_solar_storm():
-    # 尝试 NOAA SWPC
+    # 1. NOAA SWPC 实时太阳风等离子体（若可达为最理想实时源）
     try:
         raw = safe_fetch("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json", timeout=6)
         if raw and len(raw) > 1:
             L = raw[-1]
             spd = float(L[2])
             note = f"Solar wind {spd:.0f} km/s | Density: {L[1]} p/cc | Temp: {L[3]}K"
-            if spd >= 700: note = "[STORM ALERT] " + note
-            elif spd >= 500: note = "[ACTIVE] " + note
-            else: note = "[QUIET] " + note
+            note = ("[STORM ALERT] " if spd >= 700 else "[ACTIVE] " if spd >= 500 else "[QUIET] ") + note
             return jsonify({
                 "startTime": L[0], "catalog": "NOAA SWPC",
                 "instruments": "DSCOVR, ACE",
                 "note": note, "storm_active": spd >= 500,
                 "_source": "live",
             })
-    except Exception: pass
-    # 硬编码兜底
+    except Exception:
+        pass
+    # 2. NASA DONKI 近期日冕物质抛射 CME（与 APOD 同域，Vercel 上通常可达）
+    try:
+        now = datetime.now(timezone.utc)
+        start = (now - timedelta(days=14)).strftime("%Y-%m-%d")
+        end = now.strftime("%Y-%m-%d")
+        cme = safe_fetch(
+            f"https://api.nasa.gov/DONKI/CME?startDate={start}&endDate={end}&api_key={NASA_KEY}",
+            timeout=8)
+        if isinstance(cme, list) and cme:
+            earth_dir = []
+            for e in cme:
+                for a in (e.get("cmeAnalyses") or []):
+                    try:
+                        spd = float(a.get("speed") or 0)
+                        lon = float(a.get("longitude"))
+                    except (TypeError, ValueError):
+                        continue
+                    if spd >= 500 and abs(lon) <= 60:   # 高速且大致朝向地球
+                        earth_dir.append((e.get("startTime"), spd))
+            if earth_dir:
+                earth_dir.sort()
+                t, spd = earth_dir[-1]
+                return jsonify({
+                    "startTime": t, "catalog": "NASA DONKI",
+                    "instruments": "SOHO, STEREO, SDO",
+                    "note": f"[ACTIVE] Earth-directed CME detected {spd:.0f} km/s (launch {str(t)[:10]}) — geomagnetic storm possible",
+                    "storm_active": True,
+                    "_source": "NASA DONKI",
+                })
+            last = cme[0].get("startTime", "")
+            return jsonify({
+                "startTime": last, "catalog": "NASA DONKI",
+                "instruments": "SOHO, STEREO, SDO",
+                "note": f"[QUIET] No Earth-directed CME in last 14 days (last CME {str(last)[:10]})",
+                "storm_active": False,
+                "_source": "NASA DONKI",
+            })
+    except Exception:
+        pass
+    # 3. 兜底 demo（合理平静状态，保证前端永不报错）
     return jsonify({
-        "startTime": "2026-06-18 08:00:00",
+        "startTime": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:00:00"),
         "catalog": "NOAA SWPC",
         "instruments": "DSCOVR, ACE, SOHO, STEREO",
         "note": "[QUIET] Solar wind 385 km/s | Density: 4.2 p/cc | Temp: 85000K | No storm expected.",

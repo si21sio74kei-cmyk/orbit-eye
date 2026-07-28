@@ -30,6 +30,7 @@
   <a href="/" class="ctrl-btn">&#9664; 返回仪表盘</a>
   <button id="btn-cam" class="ctrl-btn">📷 启动摄像头</button>
   <button id="btn-rst" class="ctrl-btn">☀ 重置视角</button>
+  <button id="btn-glossary" class="ctrl-btn" onclick="toggleGlossary()">📖 名词字典</button>
   <div class="pnl corner" style="padding:10px;">
     <div style="font-family:var(--title);font-size:9px;color:var(--label);margin-bottom:6px;">时间流速 <span id="speed-label" style="color:var(--primary);">1.0x</span></div>
     <input type="range" id="speed-slider" min="0.1" max="5" step="0.1" value="1" style="width:100%;accent-color:var(--primary);">
@@ -55,6 +56,43 @@
   </div>
 </div>
 
+<div id="glossary" style="display:none;position:fixed;right:18px;bottom:18px;width:340px;max-height:74vh;overflow-y:auto;z-index:9999;background:rgba(10,15,28,.94);border:1px solid #1e3a5f;border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.8),0 0 24px rgba(56,189,248,.15);backdrop-filter:blur(8px);font-family:'Inter','Microsoft YaHei',sans-serif;">
+  <div style="position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:linear-gradient(180deg,rgba(14,21,38,.98),rgba(14,21,38,.85));border-bottom:1px solid #1e3a5f;border-radius:14px 14px 0 0;">
+    <span style="font-weight:700;color:#38bdf8;font-size:14px;">📖 名词小字典（看不懂就点开）</span>
+    <button onclick="toggleGlossary()" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="padding:6px 14px 16px;">
+    <p style="color:#94a3b8;font-size:11px;line-height:1.6;margin:8px 0 12px;border-left:3px solid #38bdf8;padding-left:8px;">提示：太阳系里星球的大小和轨道距离是为了好看做的<strong style="color:#e2e8f0;">示意缩放</strong>，真实数字请看用两根手指捏合弹出的信息卡（数据来自 NASA / 太阳系开放数据库）。</p>
+    <div class="g-item"><b>太阳系</b>：以太阳为中心，加上八大行星、矮行星、小行星、彗星等一大群天体的大家庭。</div>
+    <div class="g-item"><b>恒星 / 行星</b>：恒星（如太阳）自己会发光发热；行星自己不发光，靠反射太阳光，绕着恒星转。</div>
+    <div class="g-item"><b>公转 / 自转</b>：公转＝行星绕太阳转一整圈（一年）；自转＝行星自己转一圈（一天）。</div>
+    <div class="g-item"><b>轨道</b>：行星走的路径，近似一个椭圆。离太阳越近跑得越快。</div>
+    <div class="g-item"><b>近地小行星（NEO）</b>：轨道会接近地球的小天体。因为有可能撞到地球，所以天文学家一直在监测。</div>
+    <div class="g-item"><b>太阳风</b>：太阳一直向外吹出的带电粒子流，速度大约每秒 400 公里。</div>
+    <div class="g-item"><b>CME（日冕物质抛射）/ 太阳风暴</b>：太阳“爆发”喷出一大团物质。如果朝向地球，可能干扰卫星、导航和通讯。</div>
+    <div class="g-item"><b>TLE（两行轨道根数）</b>：描述人造卫星轨道的一种数据格式，一共两行字，卫星位置就是靠它算出来的。</div>
+    <div class="g-item"><b>ISS（国际空间站）</b>：人类在太空的实验室，离地面约 400 公里，90 分钟绕地球一圈。</div>
+    <div class="g-item"><b>黄道面</b>：地球绕太阳公转的那个平面。多数行星都大致在这个平面附近转。</div>
+    <div class="g-item"><b>天文单位（AU）</b>：地球到太阳的平均距离，约 1.5 亿公里。用来量太阳系内的距离很方便。</div>
+    <div class="g-item"><b>光年</b>：光走一年的距离（约 9.5 万亿公里），用来量星星之间的距离。</div>
+    <div class="g-item"><b>系外行星</b>：太阳系以外、绕着别的恒星转的行星。</div>
+    <div class="g-item"><b>火星天气</b>：NASA 放在火星上的探测器测到的气温、风速等，火星比地球冷很多。</div>
+    <div class="g-item"><b>手势控制</b>：用电脑摄像头识别你的手——张开手放大、握拳头缩小、两根手指捏合弹出信息卡，不用鼠标也能玩。</div>
+    <div class="g-item"><b>观测条件</b>：今晚看星星清不清楚、会不会被月亮或城市灯光影响。</div>
+  </div>
+</div>
+<style>
+  .g-item{color:#cbd5e1;font-size:12.5px;line-height:1.6;padding:9px 4px;border-bottom:1px solid rgba(30,58,95,.5);}
+  .g-item b{color:#7dd3fc;font-weight:700;}
+  #glossary::-webkit-scrollbar{width:6px;}
+  #glossary::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:3px;}
+</style>
+<script>
+  function toggleGlossary(){
+    const g = document.getElementById('glossary');
+    g.style.display = (g.style.display === 'none') ? 'block' : 'none';
+  }
+</script>
 <script src="/static/js/solar.js"></script>
 </body>
 </html>

@@ -27,82 +27,50 @@
 #loading-overlay.hidden { opacity:0; pointer-events:none; visibility:hidden; }
 #startup-canvas { position:absolute;inset:0;z-index:1; }
 #startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center;gap:0; }
-#startup-logo { display:flex;align-items:baseline;gap:16px;position:relative;margin-bottom:6px; }
+#startup-logo { display:flex;flex-direction:column;align-items:center;gap:14px;position:relative;margin-bottom:16px; }
 .startup-title-main {
-  font-family:'Orbitron','Inter',sans-serif;font-size:clamp(48px,11vw,82px);
-  letter-spacing:16px;color:#fff;position:relative;font-weight:900;
-  text-shadow:0 0 30px rgba(56,189,248,.4),0 0 60px rgba(56,189,248,.25),0 0 120px rgba(56,189,248,.15),0 0 200px rgba(56,189,248,.08),0 0 10px #fff,0 2px 0 rgba(0,0,0,.5);
-  animation:titleBreath 3s ease-in-out infinite;
+  font-family:'Orbitron','Inter',sans-serif;font-size:clamp(44px,10vw,74px);
+  letter-spacing:14px;color:#fff;position:relative;font-weight:800;
+  text-shadow:0 0 22px rgba(56,189,248,.22),0 0 2px #fff;
+  animation:fadeInUp .8s both;
 }
-.startup-title-main::before {
-  content:attr(data-text);position:absolute;top:0;left:0;width:100%;height:100%;
-  color:transparent;background:linear-gradient(180deg,#38bdf8 0%,#818cf8 50%,#38bdf8 100%);
-  -webkit-background-clip:text;background-clip:text;opacity:.45;filter:blur(1.5px);
-  animation:holoShift 4s ease-in-out infinite;
+.startup-underline {
+  width:150px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,#38bdf8 50%,transparent);
+  transform:scaleX(0);transform-origin:center;
+  box-shadow:0 0 14px rgba(56,189,248,.7);
+  animation:underlineDraw 1.1s .35s cubic-bezier(.2,.8,.2,1) forwards;
 }
-.startup-title-main::after {
-  content:attr(data-text);position:absolute;top:0;left:0;width:100%;height:100%;
-  color:transparent;background:linear-gradient(180deg,#c084fc 0%,#f472b6 50%,#c084fc 100%);
-  -webkit-background-clip:text;background-clip:text;opacity:.2;
-  clip-path:polygon(0 15%,100% 10%,100% 30%,0 35%,0 55%,100% 50%,100% 70%,0 75%);
-  animation:glitchStutter 3.5s infinite steps(1) alternate;
-}
-@keyframes titleBreath {
-  0%,100%{text-shadow:0 0 30px rgba(56,189,248,.4),0 0 60px rgba(56,189,248,.25),0 0 120px rgba(56,189,248,.15),0 0 200px rgba(56,189,248,.08),0 0 10px #fff}
-  50%{text-shadow:0 0 50px rgba(56,189,248,.6),0 0 90px rgba(56,189,248,.4),0 0 160px rgba(56,189,248,.25),0 0 260px rgba(56,189,248,.12),0 0 16px #fff}
-}
-@keyframes holoShift {
-  0%,100%{opacity:.45;filter:blur(1.5px)} 50%{opacity:.6;filter:blur(2px)}
-}
-@keyframes glitchStutter {
-  0%{transform:translate(0);opacity:.2} 25%{transform:translate(-4px,2px);opacity:.35}
-  50%{transform:translate(3px,-1px);opacity:.15} 75%{transform:translate(2px,1px);opacity:.3}
-  100%{transform:translate(-2px,-1px);opacity:.2}
-}
+@keyframes underlineDraw { from{transform:scaleX(0);opacity:0} to{transform:scaleX(1);opacity:1} }
 .startup-ver {
   font-family:'Share Tech Mono',monospace;font-size:12px;color:#38bdf8;
-  letter-spacing:5px;border:1px solid rgba(56,189,248,.35);padding:5px 12px;border-radius:3px;
-  background:rgba(56,189,248,.04);box-shadow:0 0 20px rgba(56,189,248,.1),inset 0 0 8px rgba(56,189,248,.03);
-  animation:fadeInUp .8s .2s both;align-self:flex-start;margin-top:8px;
-}
-.startup-divider {
-  width:180px;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(56,189,248,.4) 20%,#38bdf8 50%,rgba(56,189,248,.4) 80%,transparent);
-  margin:0 auto 8px auto;box-shadow:0 0 16px rgba(56,189,248,.3);animation:fadeInUp .8s .4s both;
+  letter-spacing:5px;border:1px solid rgba(56,189,248,.3);padding:5px 12px;border-radius:3px;
+  background:rgba(56,189,248,.04);
+  animation:fadeInUp .8s .6s both;
 }
 .startup-subtitle-cn {
   font-family:'Inter','Microsoft YaHei',sans-serif;font-size:13px;letter-spacing:8px;
-  color:rgba(255,255,255,.75);text-shadow:0 0 10px rgba(56,189,248,.3);
-  animation:fadeInUp .8s .5s both;font-weight:300;
+  color:rgba(255,255,255,.7);font-weight:300;animation:fadeInUp .8s .7s both;
 }
 .startup-sub-en {
   font-size:8px;letter-spacing:4px;color:rgba(56,189,248,.28);
-  font-family:'Share Tech Mono',monospace;animation:fadeInUp .8s .6s both;
+  font-family:'Share Tech Mono',monospace;animation:fadeInUp .8s .8s both;margin-top:4px;
 }
-.startup-corner-frame { position:absolute;inset:40px;z-index:0;pointer-events:none; }
-.startup-corner-frame .corner {
-  position:absolute;width:40px;height:40px;border-color:rgba(56,189,248,.25);
-  animation:cornerGlow 3s ease-in-out infinite;
-}
-.startup-corner-frame .corner.tl{top:0;left:0;border-left:1px solid;border-top:1px solid;}
-.startup-corner-frame .corner.tr{top:0;right:0;border-right:1px solid;border-top:1px solid;animation-delay:.8s;}
-.startup-corner-frame .corner.bl{bottom:0;left:0;border-left:1px solid;border-bottom:1px solid;animation-delay:.4s;}
-.startup-corner-frame .corner.br{bottom:0;right:0;border-right:1px solid;border-bottom:1px solid;animation-delay:1.2s;}
 @keyframes cornerGlow {
   0%,100%{border-color:rgba(56,189,248,.15)} 50%{border-color:rgba(56,189,248,.5)}
 }
 #startup-progress-ring {
-  width:240px;margin:14px auto 6px;animation:fadeInUp .8s .7s both;
+  width:260px;margin:14px auto 6px;animation:fadeInUp .8s .9s both;
 }
 #startup-progress-text {
   font-family:'Share Tech Mono',monospace;font-size:13px;color:#38bdf8;letter-spacing:2px;
   text-align:center;margin-bottom:8px;
 }
 #startup-progress-ring .bar-track {
-  height:6px;width:100%;border-radius:3px;background:rgba(56,189,248,.08);overflow:hidden;
+  height:3px;width:100%;border-radius:3px;background:rgba(56,189,248,.08);overflow:hidden;
 }
 #startup-progress-circle {
-  height:6px;width:0%;border-radius:3px;
+  height:3px;width:0%;border-radius:3px;
   background:linear-gradient(90deg,#0ea5e9,#38bdf8,#7dd3fc);
   box-shadow:0 0 10px rgba(56,189,248,.6);
   transition:width .5s ease;
@@ -227,17 +195,13 @@
 
 <div id="loading-overlay">
   <canvas id="startup-canvas"></canvas>
-  <div class="startup-corner-frame">
-    <div class="corner tl"></div><div class="corner tr"></div>
-    <div class="corner bl"></div><div class="corner br"></div>
-  </div>
   <div class="startup-hscan"></div>
   <div id="startup-content">
     <div id="startup-logo">
       <span class="startup-title-main" data-text="轨道之眼">轨道之眼</span>
+      <span class="startup-underline"></span>
       <span class="startup-ver">OrbitEye v1.0</span>
     </div>
-    <div class="startup-divider"></div>
     <div class="startup-subtitle-cn">太 空 环 境 实 时 监 测 仪 表 盘</div>
     <div class="startup-sub-en">ORBITEYE · SPACE TELEMETRY DASHBOARD</div>
     <div id="startup-progress-ring">

@@ -8,11 +8,11 @@
   if(typeof PLANET_VS==='undefined') missing.push('PLANET_VS');
   if(typeof SUN_FS==='undefined') missing.push('SUN_FS');
   if(missing.length>0){
-    console.error('[OrbitEye] planet_shaders.js 著色器載入失敗！缺少: '+missing.join(', '));
-    console.error('[OrbitEye] 請確認 /static/js/planet_shaders.js 存在且無語法錯誤');
-    console.warn('[OrbitEye] 將使用純色材質降級顯示星球');
+    console.error('[DSM] planet_shaders.js 著色器載入失敗！缺少: '+missing.join(', '));
+    console.error('[DSM] 請確認 /static/js/planet_shaders.js 存在且無語法錯誤');
+    console.warn('[DSM] 將使用純色材質降級顯示星球');
   } else {
-    console.log('[OrbitEye] GPU 著色器全部載入成功 ('+Object.keys(window).filter(k=>k.endsWith('_FS')).length+' fragment shaders)');
+    console.log('[DSM] GPU 著色器全部載入成功 ('+Object.keys(window).filter(k=>k.endsWith('_FS')).length+' fragment shaders)');
   }
 })();
 // 電影級軌道 — 太陽半徑 3.50，所有行星軌道 > 6.0 絕不穿模（含日冕層）

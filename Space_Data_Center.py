@@ -1214,6 +1214,7 @@ def api_tle():
 #  [新] Planet Info — Solar System OpenData API
 # ═══════════════════════════════════════════════════
 SOLAR_CACHE = {"data": None, "time": 0}
+SOLAR_FAIL  = {"time": 0}  # le-systeme 最近一次失败时间；失败时短期内直接用本地兜底，避免每次请求卡顿
 
 # 中文名 → API English Name 映射
 PLANET_NAME_MAP = {
@@ -1221,6 +1222,50 @@ PLANET_NAME_MAP = {
     "地球": "Earth", "火星": "Mars", "木星": "Jupiter",
     "土星": "Saturn", "天王星": "Uranus", "海王星": "Neptune",
 }
+
+# 本地真实行星数据兜底（le-systeme 不可达时使用，字段与 Solar System OpenData API 对齐；键用小写英文名，与前端 planet-info 参数一致）
+PLANET_FALLBACK = {
+    "sun": {"bodyType":"Star","meanRadius":696340,"mass":{"massValue":1.989,"massExponent":30},
+             "sideralRotation":609.12,"axialTilt":7.25,"gravity":274.0,"density":1.408,
+             "avgTemp":5778,"escape":617500,"moons":0},
+    "mercury": {"bodyType":"Planet","isPlanet":True,"meanRadius":2439.7,"mass":{"massValue":3.301,"massExponent":23},
+             "sideralOrbit":87.97,"sideralRotation":1407.6,"axialTilt":0.034,"gravity":3.70,
+             "density":5.427,"avgTemp":440,"escape":4250,"moons":0},
+    "venus": {"bodyType":"Planet","isPlanet":True,"meanRadius":6051.8,"mass":{"massValue":4.867,"massExponent":24},
+             "sideralOrbit":224.70,"sideralRotation":5832.5,"axialTilt":177.36,"gravity":8.87,
+             "density":5.243,"avgTemp":737,"escape":10360,"moons":0},
+    "earth": {"bodyType":"Planet","isPlanet":True,"meanRadius":6371.0,"mass":{"massValue":5.972,"massExponent":24},
+             "sideralOrbit":365.25,"sideralRotation":23.93,"axialTilt":23.44,"gravity":9.807,
+             "density":5.513,"avgTemp":288,"escape":11186,"moons":1},
+    "mars": {"bodyType":"Planet","isPlanet":True,"meanRadius":3389.5,"mass":{"massValue":6.417,"massExponent":23},
+             "sideralOrbit":686.98,"sideralRotation":24.62,"axialTilt":25.19,"gravity":3.721,
+             "density":3.933,"avgTemp":210,"escape":5027,"moons":2},
+    "jupiter": {"bodyType":"Planet","isPlanet":True,"meanRadius":69911,"mass":{"massValue":1.898,"massExponent":27},
+             "sideralOrbit":4332.59,"sideralRotation":9.93,"axialTilt":3.13,"gravity":24.79,
+             "density":1.326,"avgTemp":165,"escape":59500,"moons":95},
+    "saturn": {"bodyType":"Planet","isPlanet":True,"meanRadius":58232,"mass":{"massValue":5.683,"massExponent":26},
+             "sideralOrbit":10759.22,"sideralRotation":10.66,"axialTilt":26.73,"gravity":10.44,
+             "density":0.687,"avgTemp":134,"escape":35500,"moons":146},
+    "uranus": {"bodyType":"Planet","isPlanet":True,"meanRadius":25362,"mass":{"massValue":8.681,"massExponent":25},
+               "sideralOrbit":30688.5,"sideralRotation":17.24,"axialTilt":97.77,"gravity":8.87,
+               "density":1.271,"avgTemp":76,"escape":21300,"moons":27},
+    "neptune": {"bodyType":"Planet","isPlanet":True,"meanRadius":24622,"mass":{"massValue":1.024,"massExponent":26},
+               "sideralOrbit":60182.0,"sideralRotation":16.11,"axialTilt":28.32,"gravity":11.15,
+               "density":1.638,"avgTemp":72,"escape":23500,"moons":14},
+}
+
+# 英文名(首字母大写) → 中文名（用于信息卡显示）
+REV_MAP = {v: k for k, v in PLANET_NAME_MAP.items()}
+
+def _planet_fallback(planet):
+    """le-systeme 不可达时返回内置真实行星数据；成功返回 {"info": ...}，否则 None"""
+    en = PLANET_NAME_MAP.get(planet, planet)        # 中文名→英文名，英文名保持不变
+    key = en.lower()                                # 前端传小写英文名，统一小写查表
+    data = PLANET_FALLBACK.get(key)
+    if not data:
+        return None
+    cn = REV_MAP.get(en) or REV_MAP.get(en.title()) or planet
+    return {"info": _format_planet_info(data, cn)}
 
 
 def _format_planet_info(p, cn_name):
@@ -1279,7 +1324,13 @@ def _format_planet_info(p, cn_name):
 @app.route('/api/space/planet-info')
 def api_planet_info():
     planet = request.args.get("planet", "太阳")
-    global SOLAR_CACHE
+    global SOLAR_CACHE, SOLAR_FAIL
+
+    # 近期已知 le-systeme 不可达 → 直接返回本地真实数据，避免每次请求卡 8~15 秒
+    if SOLAR_FAIL["time"] and (time.time() - SOLAR_FAIL["time"]) < 600:
+        fb = _planet_fallback(planet)
+        if fb:
+            return jsonify({"planet": planet, "info": fb["info"], "source": "local-cache"})
 
     # ── 1. 尝试 Solar System OpenData API ──
     try:
@@ -1287,12 +1338,13 @@ def api_planet_info():
         # 缓存 1 小时（所有天体一次拉取）
         if not SOLAR_CACHE["data"] or now - SOLAR_CACHE["time"] > 3600:
             resp = requests.get(SOLAR_API_URL,
-                timeout=15,
+                timeout=10,
                 headers={"User-Agent": USER_AGENT,
                          "Authorization": f"Bearer {SOLAR_SYS_KEY}"})
             if resp.status_code == 200:
                 SOLAR_CACHE = {"data": resp.json(), "time": now}
-
+            else:
+                SOLAR_FAIL["time"] = now
         if SOLAR_CACHE["data"]:
             en_name = PLANET_NAME_MAP.get(planet, planet)
             bodies = SOLAR_CACHE["data"].get("bodies", [])
@@ -1301,10 +1353,13 @@ def api_planet_info():
                     info = _format_planet_info(b, planet)
                     return jsonify({"planet": planet, "info": info, "source": "Solar-System-OpenData-API"})
     except Exception:
-        pass
+        SOLAR_FAIL["time"] = time.time()
 
-    # ── 2. API 不可用 ──
-    return jsonify({"planet": planet, "info": f"{planet} | Solar System OpenData API 暂时不可用，请稍后重试。", "source": "error"})
+    # ── 2. API 不可用 → 使用内置真实行星数据兜底 ──
+    fb = _planet_fallback(planet)
+    if fb:
+        return jsonify({"planet": planet, "info": fb["info"], "source": "local-cache"})
+    return jsonify({"planet": planet, "info": f"{planet} | 数据暂时不可用。", "source": "error"})
 
 # ═══════════════════════════════════════════════════
 #  启动

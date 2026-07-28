@@ -25,29 +25,33 @@
   transition:opacity 0.8s ease, visibility 0.8s ease;
 }
 #loading-overlay.hidden { opacity:0; pointer-events:none; visibility:hidden; }
-#startup-canvas { position:absolute;inset:0;z-index:1; }
-#startup-canvas { position:absolute;inset:0;z-index:1;opacity:.5; }
+#startup-canvas { position:absolute;inset:0;z-index:1;opacity:.92; }
 #startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center; }
-/* 细线轨道标记 */
-.startup-mark { width:84px;height:84px;margin:0 auto 36px; }
-.startup-mark svg { width:100%;height:100%;display:block;transform-origin:50% 50%; }
-.startup-mark .orbit { fill:none;stroke:rgba(255,255,255,.22);stroke-width:1; }
-.startup-mark .planet { fill:#7dd3fc; }
-/* 标题（anime.js 逐字入场） */
-.startup-title { display:flex;gap:.14em;font-family:'Inter','Microsoft YaHei',sans-serif;
-  font-size:clamp(40px,8vw,62px);font-weight:200;letter-spacing:.2em;color:#fff;margin-bottom:32px; }
-.startup-title span { display:inline-block;will-change:transform,opacity; }
+/* ── HERO：自描线轨道 + 弹性标题 + 鼠标视差 ── */
+.hero { position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 0 30px;will-change:transform; }
+.hero-ring { position:absolute;top:50%;left:50%;width:min(560px,90vw);height:min(560px,90vw);transform:translate(-50%,-50%);z-index:0;pointer-events:none;overflow:visible; }
+.hero-ring-c  { fill:none;stroke:rgba(125,211,252,.6);stroke-width:1.2;stroke-dasharray:942;stroke-dashoffset:942; }
+.hero-ring-c2 { fill:none;stroke:rgba(56,189,248,.3);stroke-width:1;stroke-dasharray:754;stroke-dashoffset:754; }
+.startup-title { position:relative;z-index:1;display:flex;gap:.1em;
+  font-family:'Inter','Microsoft YaHei',sans-serif;
+  font-size:clamp(56px,11vw,108px);font-weight:800;letter-spacing:.2em;margin-bottom:20px;
+  background:linear-gradient(180deg,#f0fdff 0%,#7dd3fc 50%,#38bdf8 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 26px rgba(56,189,248,.6));will-change:transform; }
+.startup-title span { display:inline-block;will-change:transform,opacity;opacity:0; }
+.startup-cap { position:relative;z-index:1;font-family:'Share Tech Mono',monospace;font-size:11px;
+  letter-spacing:6px;color:rgba(186,230,253,.55);margin-bottom:4px;opacity:0; }
 /* 进度发丝线 */
-#startup-progress-ring { width:200px;margin:0 auto; }
-#startup-progress-ring .bar-track { height:1px;width:100%;background:rgba(255,255,255,.12);overflow:hidden; }
-#startup-progress-circle { height:1px;width:0%;
+#startup-progress-ring { width:220px;margin:0 auto;position:relative;z-index:1;opacity:0; }
+#startup-progress-ring .bar-track { height:2px;width:100%;background:rgba(255,255,255,.12);overflow:hidden;border-radius:2px; }
+#startup-progress-circle { height:2px;width:0%;
   background:linear-gradient(90deg,#38bdf8,#7dd3fc);
-  transition:width .3s ease;box-shadow:0 0 8px rgba(56,189,248,.5); }
-#startup-progress-text { font-family:'Share Tech Mono',monospace;font-size:10px;color:rgba(255,255,255,.42);
+  transition:width .3s ease;box-shadow:0 0 10px rgba(56,189,248,.6);border-radius:2px; }
+#startup-progress-text { font-family:'Share Tech Mono',monospace;font-size:11px;color:rgba(186,230,253,.6);
   letter-spacing:3px;text-align:center;margin-bottom:14px; }
 /* 状态小字 */
 .startup-status { font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,.32);
-  letter-spacing:2px;margin-top:16px;display:flex;align-items:center;gap:8px; }
+  letter-spacing:2px;margin-top:18px;display:flex;align-items:center;gap:8px;position:relative;z-index:1;opacity:0; }
 .startup-status .status-blink { width:4px;height:4px;border-radius:50%;background:#34d399;
   box-shadow:0 0 6px #34d399;animation:dotBlinkSoft 1.4s ease-in-out infinite; }
 @keyframes dotBlinkSoft { 0%,100%{opacity:.35} 50%{opacity:1} }
@@ -123,13 +127,14 @@
 <div id="loading-overlay">
   <canvas id="startup-canvas"></canvas>
   <div id="startup-content">
-    <div class="startup-mark">
-      <svg viewBox="0 0 120 120" aria-hidden="true">
-        <circle class="orbit" cx="60" cy="60" r="50"/>
-        <circle class="planet" cx="110" cy="60" r="3.4"/>
+    <div class="hero">
+      <svg class="hero-ring" viewBox="0 0 320 320" aria-hidden="true">
+        <circle class="hero-ring-c" cx="160" cy="160" r="150"/>
+        <circle class="hero-ring-c2" cx="160" cy="160" r="120"/>
       </svg>
+      <div class="startup-title"><span>轨</span><span>道</span><span>之</span><span>眼</span></div>
+      <div class="startup-cap">ORBIT EYE · SPACE TELEMETRY</div>
     </div>
-    <div class="startup-title"><span>轨</span><span>道</span><span>之</span><span>眼</span></div>
     <div id="startup-progress-ring">
       <div id="startup-progress-text">0%</div>
       <div class="bar-track"><div id="startup-progress-circle"></div></div>

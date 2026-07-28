@@ -282,14 +282,14 @@ const startupCanvas=document.getElementById('startup-canvas');
 const startupCtx=startupCanvas.getContext('2d');
 let startupParticles=[],startupStreaks=[],startupRings=[];
 let startupRaf=null,startupTime=0;
+let startupMouse={x:innerWidth/2,y:innerHeight/2,active:false};
 let startupProgress=0,targetProgress=0;
 function initStartupParticles(){    startupCanvas.width=innerWidth;startupCanvas.height=innerHeight;
 const cx=startupCanvas.width/2,cy=startupCanvas.height/2;    
 // 上升粒子（像深海气泡向上浮）
 startupParticles=[];
-const count=Math.floor((innerWidth*innerHeight)/6000);    for(let i=0;i<count;i++){      
-const angle=Math.random()*Math.PI*2;
-const dist=Math.random()*Math.max(cx,cy)*1.2;      startupParticles.push({        x:cx+Math.cos(angle)*dist,        y:cy+Math.sin(angle)*dist*.6,        vx:(Math.random()-.5)*.25,        vy:-.4-Math.random()*1.2,        r:.4+Math.random()*2.2,        alpha:.1+Math.random()*.5,        hue:190+Math.random()*35,        life:Math.random(),        orbitAngle:angle,        orbitDist:dist,        orbitSpeed:(Math.random()-.5)*.003      });    }    
+const count=Math.floor((innerWidth*innerHeight)/6500);    for(let i=0;i<count;i++){      
+startupParticles.push({        x:Math.random()*startupCanvas.width,        y:Math.random()*startupCanvas.height,        vx:(Math.random()-.5)*.35,        vy:(Math.random()-.5)*.35,        r:1+Math.random()*2,        hue:190+Math.random()*40      });    }    
 // 流星/光轨粒子
 startupStreaks=[];    for(let i=0;i<35;i++){      startupStreaks.push({        x:Math.random()*startupCanvas.width,        y:Math.random()*startupCanvas.height*.4,        vx:.3+Math.random()*1.5,        vy:.1+Math.random()*.4,        len:40+Math.random()*120,        alpha:.08+Math.random()*.25,        hue:190+Math.random()*30,        reset(){this.x=-this.len;this.y=Math.random()*startupCanvas.height*.5;this.vx=.3+Math.random()*1.5;this.alpha=.08+Math.random()*.25;}      });    }    
 // 雷达脉冲环
@@ -299,19 +299,17 @@ const w=startupCanvas.width,h=startupCanvas.height;
 const cx=w/2,cy=h/2;    
 // ── 1. 中心微光背景 ──    
 const bgGrad=startupCtx.createRadialGradient(cx,cy,0,cx,cy,Math.min(cx,cy)*.8);    bgGrad.addColorStop(0,'rgba(56,189,248,.025)');    bgGrad.addColorStop(.5,'rgba(56,189,248,.005)');    bgGrad.addColorStop(1,'rgba(0,0,0,0)');    startupCtx.fillStyle=bgGrad;    startupCtx.fillRect(0,0,w,h);    
-// ── 2. 粒子连线 ──
-startupCtx.lineWidth=.25;    for(let i=0;i<startupParticles.length;i++){      
+// ── 2. 粒子连线网络（鼠标互动核心）──
+const LINK=150;
+startupCtx.lineWidth=.5;
+for(let i=0;i<startupParticles.length;i++){      
 const a=startupParticles[i];      for(let j=i+1;j<startupParticles.length;j++){        
 const b=startupParticles[j];
-const dx=a.x-b.x,dy=a.y-b.y,dist=Math.hypot(dx,dy);        if(dist<100){          startupCtx.strokeStyle=`rgba(56,189,248,${.035*(1-dist/100)})`;          startupCtx.beginPath();startupCtx.moveTo(a.x,a.y);startupCtx.lineTo(b.x,b.y);startupCtx.stroke();        }      }    }    
-// ── 3. 轨道粒子 (绕中心微旋) ──
-for(const p of startupParticles){      p.orbitAngle+=p.orbitSpeed;
-const tx=cx+Math.cos(p.orbitAngle)*p.orbitDist;
-const ty=cy+Math.sin(p.orbitAngle)*p.orbitDist*.6;      p.x+=(tx-p.x)*.008;      p.y+=(ty-p.y)*.008+p.vy*.015;      
-// 边界包裹
-if(p.y<-20)p.y=h+20;      if(p.y>h+20)p.y=-20;      if(p.x<-20)p.x=w+20;      if(p.x>w+20)p.x=-20;      
-// 绘制
-startupCtx.fillStyle=`hsla(${p.hue},70%,68%,${p.alpha})`;      startupCtx.beginPath();startupCtx.arc(p.x,p.y,p.r,0,Math.PI*2);startupCtx.fill();    }    
+const dx=a.x-b.x,dy=a.y-b.y,dist=Math.hypot(dx,dy);        if(dist<LINK){          startupCtx.strokeStyle=`rgba(125,211,252,${.13*(1-dist/LINK)})`;          startupCtx.beginPath();startupCtx.moveTo(a.x,a.y);startupCtx.lineTo(b.x,b.y);startupCtx.stroke();        }      }    
+// 与鼠标连线（越近越亮，animejs 招牌互动感）
+if(startupMouse.active){        const mdx=a.x-startupMouse.x,mdy=a.y-startupMouse.y,md=Math.hypot(mdx,mdy);        if(md<200){          startupCtx.strokeStyle=`rgba(56,189,248,${.3*(1-md/200)})`;          startupCtx.lineWidth=1;          startupCtx.beginPath();startupCtx.moveTo(a.x,a.y);startupCtx.lineTo(startupMouse.x,startupMouse.y);startupCtx.stroke();          startupCtx.lineWidth=.5;        }      }    }    
+// ── 3. 粒子漂移 + 绘制（近鼠标发光）──
+for(const p of startupParticles){      p.x+=p.vx;p.y+=p.vy;      if(p.x<0||p.x>w)p.vx*=-1;      if(p.y<0||p.y>h)p.vy*=-1;      let glow=0;      if(startupMouse.active){        const md=Math.hypot(p.x-startupMouse.x,p.y-startupMouse.y);        if(md<200)glow=1-md/200;      }      startupCtx.shadowColor=`rgba(56,189,248,${.4+glow*.5})`;      startupCtx.shadowBlur=4+glow*10;      startupCtx.fillStyle=`hsla(${p.hue},80%,${70+glow*20}%,${.7+glow*.3})`;      startupCtx.beginPath();startupCtx.arc(p.x,p.y,p.r+glow*1.6,0,Math.PI*2);startupCtx.fill();    }    startupCtx.shadowBlur=0;    
 // ── 4. 流星拖尾 ──
 for(const s of startupStreaks){      
 const grad=startupCtx.createLinearGradient(s.x,s.y,s.x-s.vx*s.len,s.y-s.vy*s.len);      grad.addColorStop(0,`hsla(${s.hue},90%,70%,${s.alpha})`);      grad.addColorStop(1,'transparent');      startupCtx.strokeStyle=grad;      startupCtx.lineWidth=1.2;      startupCtx.beginPath();      startupCtx.moveTo(s.x,s.y);      startupCtx.lineTo(s.x-s.vx*s.len,s.y-s.vy*s.len);      startupCtx.stroke();      s.x+=s.vx;s.y+=s.vy;      if(s.x>w+s.len||s.y>h+s.len)s.reset();    }    
@@ -319,14 +317,12 @@ const grad=startupCtx.createLinearGradient(s.x,s.y,s.x-s.vx*s.len,s.y-s.vy*s.len
 for(const ring of startupRings){      ring.radius+=ring.speed;      if(ring.radius>ring.maxRadius){ring.radius=0;ring.alpha=0;}      ring.alpha=Math.max(0,Math.min(.35,ring.alpha+.008*(1-ring.radius/ring.maxRadius)));
 const fadeAlpha=ring.alpha*(1-ring.radius/ring.maxRadius);      startupCtx.strokeStyle=`rgba(56,189,248,${fadeAlpha})`;      startupCtx.lineWidth=.8;      startupCtx.shadowColor='rgba(56,189,248,.15)';      startupCtx.shadowBlur=6;      startupCtx.beginPath();      startupCtx.ellipse(cx,cy,ring.radius,ring.radius*.5,0,0,Math.PI*2);      startupCtx.stroke();      startupCtx.shadowBlur=0;    }    
 // ── 6. 中心旋转几何环 (Canvas绘制，比CSS更精细) ──    
-const hexSides=6,hexR=55+Math.sin(startupTime*.8)*6;    startupCtx.strokeStyle=`rgba(56,189,248,${.18+Math.sin(startupTime*1.3)*.06})`;    startupCtx.lineWidth=.6;    startupCtx.shadowColor='rgba(56,189,248,.3)';    startupCtx.shadowBlur=10;    startupCtx.beginPath();    for(let i=0;i<=hexSides;i++){      
+const hexSides=6,hexR=72+Math.sin(startupTime*.8)*8;    startupCtx.strokeStyle=`rgba(125,211,252,${.22+Math.sin(startupTime*1.3)*.08})`;    startupCtx.lineWidth=.8;    startupCtx.shadowColor='rgba(56,189,248,.4)';    startupCtx.shadowBlur=14;    startupCtx.beginPath();    for(let i=0;i<=hexSides;i++){      
 const a=startupTime*.25+i/hexSides*Math.PI*2;
 const x=cx+Math.cos(a)*hexR,y=cy+Math.sin(a)*hexR*.5;      if(i===0)startupCtx.moveTo(x,y);      else startupCtx.lineTo(x,y);    }    startupCtx.stroke();    
 // 内环
 startupCtx.strokeStyle=`rgba(56,189,248,${.08+Math.sin(startupTime*1.5)*.03})`;    startupCtx.lineWidth=.4;    startupCtx.beginPath();    startupCtx.ellipse(cx,cy,hexR*.7,hexR*.35,startupTime*.15,0,Math.PI*2);    startupCtx.stroke();    startupCtx.shadowBlur=0;    
-// ── 7. 四角连接线 ──    
-const cornerDist=Math.min(w,h)*.35;
-const corners=[      [40,40], [w-40,40], [w-40,h-40], [40,h-40]    ];    startupCtx.strokeStyle=`rgba(56,189,248,${.04+Math.sin(startupTime)*.02})`;    startupCtx.lineWidth=.3;    corners.forEach(([cx2,cy2])=>{      startupCtx.beginPath();      startupCtx.moveTo(cx2,cy2);      startupCtx.lineTo(cx+(cx2-cx)*.15,cy+(cy2-cy)*.15);      startupCtx.stroke();    });    startupRaf=requestAnimationFrame(drawStartupParticles);  }  
+startupRaf=requestAnimationFrame(drawStartupParticles);  }  
 
 // ── 进度条更新 ──  
 function updateProgressRing(pct){    
@@ -337,14 +333,30 @@ circle.style.width=pct+'%';    text.textContent=Math.round(pct)+'%';  }
 // ── 启动序列 ──
 initStartupParticles();  startupRaf=requestAnimationFrame(drawStartupParticles);  
 window.addEventListener('resize',()=>{if(startupRaf)initStartupParticles();});
-// ── anime.js 精致入场（轨道之眼）──
+window.addEventListener('mousemove',e=>{startupMouse.x=e.clientX;startupMouse.y=e.clientY;startupMouse.active=true;});
+document.addEventListener('mouseleave',()=>{startupMouse.active=false;});
+// ── anime.js 惊艳入场（animejs.com 风格）──
 if (window.anime) {
-  anime({ targets:'.startup-title span', opacity:[0,1], translateY:[16,0], delay:anime.stagger(110,{start:250}), duration:900, easing:'easeOutExpo' });
-  anime({ targets:'.startup-mark svg', rotate:'360deg', duration:12000, easing:'linear', loop:true });
-  anime({ targets:'#startup-progress-ring, .startup-status', opacity:[0,1], duration:800, delay:900, easing:'easeOutQuad' });
-  anime({ targets:'#startup-content', opacity:[0,1], duration:600, easing:'easeOutQuad' });
+  // 1. SVG 自描轨道线（anime.js 招牌 line-draw）
+  anime({ targets:'.hero-ring-c',  strokeDashoffset:[anime.setDashoffset,0], easing:'easeInOutSine', duration:1700, delay:100 });
+  anime({ targets:'.hero-ring-c2', strokeDashoffset:[anime.setDashoffset,0], easing:'easeInOutSine', duration:1900, delay:350 });
+  // 2. 标题弹性弹簧逐字入场
+  anime({ targets:'.startup-title span', opacity:[0,1], scale:[0,1], rotate:[-30,0], translateY:[46,0],
+    delay:anime.stagger(85,{start:550}), duration:1200, easing:'easeOutElastic(1,.55)' });
+  // 3. 英文副标淡入
+  anime({ targets:'.startup-cap', opacity:[0,1], translateY:[14,0], duration:800, delay:1350, easing:'easeOutQuad' });
+  // 4. 进度 + 状态淡入
+  anime({ targets:'#startup-progress-ring, .startup-status', opacity:[0,1], duration:800, delay:1450, easing:'easeOutQuad' });
+  // 5. 标题持续呼吸浮动（让画面始终“活着”）
+  anime({ targets:'.startup-title', translateY:[0,-9], direction:'alternate', loop:true, duration:2800, easing:'easeInOutSine', delay:2000 });
+  // 6. 鼠标视差：hero 随光标轻微位移
+  window.addEventListener('mousemove', e=>{
+    const dx=(e.clientX/innerWidth-.5), dy=(e.clientY/innerHeight-.5);
+    anime({ targets:'.hero', translateX:dx*28, translateY:dy*20, duration:900, easing:'easeOutQuad' });
+  });
 } else {
-  document.querySelectorAll('.startup-title span').forEach(s=>s.style.opacity=1);
+  document.querySelectorAll('.startup-title span,.startup-cap,#startup-progress-ring,.startup-status').forEach(s=>s.style.opacity=1);
+  document.querySelectorAll('.hero-ring-c,.hero-ring-c2').forEach(c=>c.style.strokeDashoffset=0);
 }
 const statusEl=document.getElementById('startup-status-text');
 const statusSeq=[    {t:0,   msg:'正在获取 ISS 实时位置...',          prog:5},    {t:300, msg:'正在加载 NASA 每日天文图...',         prog:12},    {t:650, msg:'正在计算与澳门的直线距离...',         prog:22},    {t:1000,msg:'正在查询近期火箭发射计划...',         prog:35},    {t:1350,msg:'正在加载 CelesTrak 卫星轨道数据...',  prog:48},    {t:1700,msg:'正在获取火星天气数据...',             prog:60},    {t:2000,msg:'正在监测太阳风暴活动...',             prog:72},    {t:2300,msg:'正在校准大气环境传感器数据...',       prog:82},    {t:2600,msg:'正在整理近地小行星列表...',           prog:90},    {t:2900,msg:'遥测数据流已就绪',                    prog:100},  ];

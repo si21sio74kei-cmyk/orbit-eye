@@ -430,11 +430,11 @@ def api_solar_storm():
             L = raw[-1]
             spd = float(L[2])
             note = f"Solar wind {spd:.0f} km/s | Density: {L[1]} p/cc | Temp: {L[3]}K"
-            note = ("[STORM ALERT] " if spd >= 700 else "[ACTIVE] " if spd >= 500 else "[QUIET] ") + note
+            note = ("[STORM ALERT] " if spd >= 700 else "[ACTIVE] " if spd >= 600 else "[QUIET] ") + note
             payload = {
                 "startTime": L[0], "catalog": "NOAA SWPC",
                 "instruments": "DSCOVR, ACE",
-                "note": note, "storm_active": spd >= 500,
+                "note": note, "storm_active": spd >= 600,
                 "_source": "live",
             }
             _STORM_CACHE.update(data=payload, time=time.time())
@@ -458,7 +458,7 @@ def api_solar_storm():
                         lon = float(a.get("longitude"))
                     except (TypeError, ValueError):
                         continue
-                    if spd >= 500 and abs(lon) <= 60:   # 高速且大致朝向地球
+                    if spd >= 600 and abs(lon) <= 60:   # 高速且大致朝向地球
                         earth_dir.append((e.get("startTime"), spd))
             if earth_dir:
                 earth_dir.sort()

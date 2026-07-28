@@ -988,23 +988,10 @@ function closeSatMap(){
       ssCam.lookAt(window._camTarget);
     }
   }
-  // 🌊 宇宙悬浮微动 — 平静：微弱漂流 / 风暴：电磁震颤 + 画布Glitch
-  // 信息面板(planet-card)激活时一律冻结相机抖动，确保数据可读
-  if (window._isStormActive && !window._cardActive) {
-    // ☢️ 相机电磁震颤（幅度收敛，保有异变感但不晃眼）
-    ssCam.position.x += (Math.sin(time) * 0.005) + (Math.random() - 0.5) * 0.012;
-    ssCam.position.y += (Math.cos(time * 0.8) * 0.003) + (Math.random() - 0.5) * 0.012;
-    ssCam.position.z += (Math.random() - 0.5) * 0.008;
-    // 高能宇宙射线穿帮色调：5% 的帧轻微触发
-    cv.style.filter = Math.random() < 0.05
-      ? 'hue-rotate(35deg) contrast(1.12) brightness(1.05) saturate(1.3)'
-      : 'none';
-  } else {
-    // 🌿 平静太空 / 面板查看中：温和慢速漂流，画面稳定
-    ssCam.position.x += Math.sin(time) * 0.005;
-    ssCam.position.y += Math.cos(time * 0.8) * 0.003;
-    cv.style.filter = 'none';
-  }
+  // 🌊 宇宙悬浮微动 — 风暴不再抖镜头，仅由红色日冕粒子表达异变（见上方日冕动画），画面始终稳定
+  ssCam.position.x += Math.sin(time) * 0.005;
+  ssCam.position.y += Math.cos(time * 0.8) * 0.003;
+  cv.style.filter = 'none';
 
   // 💫 流星生命週期管理 — 風暴期間觸發率暴增至 20%
   const spawnChance = window._isStormActive ? 0.20 : 0.012;

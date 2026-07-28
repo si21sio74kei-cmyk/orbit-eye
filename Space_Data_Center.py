@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Global Deep Space Environment Intelligent Monitoring Platform v12.0
-参考 DeepSpace-Survival-Simulator 架构 — 每端点独立硬编码兜底
+轨道之眼 OrbitEye — 太空数据中心（高中期末项目）
+每个 API 端点都尽量用真实数据源，并在不可用时保留兜底
 Usage: python Space_Data_Center.py  →  http://127.0.0.1:5500
 """
 from flask import Flask, jsonify, request, Response, send_file, send_from_directory
@@ -44,7 +44,10 @@ MACAO_LAT     = float(env("MACAO_LAT", "22.1989"))
 MACAO_LON     = float(env("MACAO_LON", "113.5491"))
 
 # ── 共用常數 ──────────────────────────────────────
-USER_AGENT = "GlobalDSM/12.0 (Educational Project; dsm@example.com)"
+USER_AGENT = "OrbitEye/1.0 (Educational Project)"
+
+# 太阳风暴结果缓存（10 分钟），避免每次请求都重复拉取 NASA DONKI
+_STORM_CACHE = {"data": None, "time": 0}
 # 月相計算參考基準：2000-01-06 18:14 UTC (Known New Moon)
 LUNAR_REF  = datetime(2000, 1, 6, 18, 14, 0, tzinfo=timezone.utc)
 LUNAR_DAYS = 29.530588  # 朔望月 (synodic month)
@@ -149,16 +152,16 @@ def solar():
 def static_files(filename):
     return send_from_directory(str(STATIC_DIR), filename)
 
-# [卡片1] ISS 实时位置 + 地面测控链路（预设观测点: 澳门）
+# [卡片1] ISS 实时位置 + 与澳门的直线距离（澳门只是用来比对的一个参考点，并非测控站）
 def _build_iss(lat, lon, ts, src):
     """构造 ISS 接口响应（直播 / 缓存共用），避免重复代码"""
     dist = macao_dist(lat, lon)
     return jsonify({
         "iss_position": {"latitude": lat, "longitude": lon},
         "timestamp": ts,
-        "macao_dsn": {
+        "macao_link": {
             "distance_km": dist,
-            "status": "LOCKED" if dist < 1500 else "BELOW_HORIZON",
+            "status": "IN_RANGE" if dist < 1500 else "OUT_OF_RANGE",
             "alarm": dist < 1500,
             "window_km": 1500,
         },
@@ -190,7 +193,7 @@ def api_iss():
     return jsonify({
         "iss_position": {"latitude": 22.3512, "longitude": 114.0873},
         "timestamp": int(time.time()),
-        "macao_dsn": {"distance_km": 58.7, "status": "LOCKED", "alarm": True, "window_km": 1500},
+        "macao_link": {"distance_km": 58.7, "status": "IN_RANGE", "alarm": True, "window_km": 1500},
         "pass_predictions": [
             {"start_in_minutes":3.0,"duration_minutes":8.5,"min_distance_km":58.7,"start_time_hkt":"2026-06-18 20:03:00 HKT"},
             {"start_in_minutes":95.7,"duration_minutes":7.2,"min_distance_km":142.3,"start_time_hkt":"2026-06-18 21:35:40 HKT"},
@@ -376,8 +379,7 @@ def api_weather():
         lat, lon = CITY_COORDS[city]
         wx_data = safe_fetch(
             f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
-            f"&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m"
-            f"&timezone=Asia/Shanghai", timeout=8)
+            f"&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m", timeout=8)
         if wx_data and wx_data.get("current"):
             c = wx_data["current"]
             temp = str(round(c.get("temperature_2m", 999)))
@@ -418,6 +420,9 @@ def api_weather():
 # [卡片5] 太阳风暴监测
 @app.route('/api/space/solar-storm')
 def api_solar_storm():
+    # 短缓存：太阳活动变化很慢，10 分钟刷新一次即可（更快、也避免频繁打 NASA 被限流）
+    if _STORM_CACHE.get("data") and (time.time() - _STORM_CACHE.get("time", 0)) < 600:
+        return jsonify(_STORM_CACHE["data"])
     # 1. NOAA SWPC 实时太阳风等离子体（若可达为最理想实时源）
     try:
         raw = safe_fetch("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json", timeout=6)
@@ -426,12 +431,14 @@ def api_solar_storm():
             spd = float(L[2])
             note = f"Solar wind {spd:.0f} km/s | Density: {L[1]} p/cc | Temp: {L[3]}K"
             note = ("[STORM ALERT] " if spd >= 700 else "[ACTIVE] " if spd >= 500 else "[QUIET] ") + note
-            return jsonify({
+            payload = {
                 "startTime": L[0], "catalog": "NOAA SWPC",
                 "instruments": "DSCOVR, ACE",
                 "note": note, "storm_active": spd >= 500,
                 "_source": "live",
-            })
+            }
+            _STORM_CACHE.update(data=payload, time=time.time())
+            return jsonify(payload)
     except Exception:
         pass
     # 2. NASA DONKI 近期日冕物质抛射 CME（与 APOD 同域，Vercel 上通常可达）
@@ -456,39 +463,45 @@ def api_solar_storm():
             if earth_dir:
                 earth_dir.sort()
                 t, spd = earth_dir[-1]
-                return jsonify({
+                payload = {
                     "startTime": t, "catalog": "NASA DONKI",
                     "instruments": "SOHO, STEREO, SDO",
                     "note": f"[ACTIVE] Earth-directed CME detected {spd:.0f} km/s (launch {str(t)[:10]}) — geomagnetic storm possible",
                     "storm_active": True,
                     "_source": "NASA DONKI",
-                })
+                }
+                _STORM_CACHE.update(data=payload, time=time.time())
+                return jsonify(payload)
             last = cme[0].get("startTime", "")
-            return jsonify({
+            payload = {
                 "startTime": last, "catalog": "NASA DONKI",
                 "instruments": "SOHO, STEREO, SDO",
                 "note": f"[QUIET] No Earth-directed CME in last 14 days (last CME {str(last)[:10]})",
                 "storm_active": False,
                 "_source": "NASA DONKI",
-            })
+            }
+            _STORM_CACHE.update(data=payload, time=time.time())
+            return jsonify(payload)
     except Exception:
         pass
     # 3. 兜底 demo（合理平静状态，保证前端永不报错）
-    return jsonify({
+    payload = {
         "startTime": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:00:00"),
         "catalog": "NOAA SWPC",
         "instruments": "DSCOVR, ACE, SOHO, STEREO",
         "note": "[QUIET] Solar wind 385 km/s | Density: 4.2 p/cc | Temp: 85000K | No storm expected.",
         "storm_active": False,
         "_source": "demo",
-    })
+    }
+    _STORM_CACHE.update(data=payload, time=time.time())
+    return jsonify(payload)
 
 # [健康检查]
 @app.route('/api/space/health')
 def api_health():
     return jsonify({
         "status": "ONLINE",
-        "service": "Global Deep Space Monitor v12.0",
+        "service": "轨道之眼 OrbitEye v1.0",
         "port": PORT,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     })
@@ -1240,7 +1253,7 @@ def api_tle():
         tle1 = f"1 {sat_num:05d}U 26001A   26170.50000000  .00001000  00000-0  10000-3 0  999{k%10}"
         tle2 = f"2 {sat_num:05d} {inc:8.4f} {raan:8.4f} {int(ecc*10000000):07d} {arg_p:8.4f} {mean_an:8.4f} {mean_motion:11.8f}{k%10}"
         mock_sats.append({
-            "name": f"DSM-MOCK-{k:04d}",
+            "name": f"ORBIT-MOCK-{k:04d}",
             "tle1": tle1,
             "tle2": tle2
         })
@@ -1405,12 +1418,12 @@ def api_planet_info():
 if __name__ == "__main__":
     print(f"""
 +==========================================================+
-|  Global Deep Space Environment Monitor  v12.0            |
+|  轨道之眼 OrbitEye  v1.0                                  |
 |                                                          |
 |  Server:  http://127.0.0.1:{PORT}                              |
 |  NASA Key: {"CONFIGURED" if NASA_KEY!="DEMO" else "DEMO (offline fallback)"} |
 |                                                          |
-|  Pages: [1] Telemetry  [2] Solar System  [3] AI Lab      |
+|  Pages: [1] 遥测仪表盘  [2] 太阳系手势控制                |
 +==========================================================+
     """)
     app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False)

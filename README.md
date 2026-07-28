@@ -5,9 +5,9 @@
 ![Python](https://img.shields.io/badge/python-3.9+-blue.svg)
 ![Three.js](https://img.shields.io/badge/3D-Three.js-orange.svg)
 ![MediaPipe](https://img.shields.io/badge/Gesture-MediaPipe-red.svg)
-![Version](https://img.shields.io/badge/version-12.0-red.svg)
+![Version](https://img.shields.io/badge/version-1.0-blue.svg)
 
-> **"立足地球，仰望星空 — AI 驱动全球太空环境实时监测 + 手势交互粒子星系"**
+> **"立足地球，仰望星空 — 全球太空环境实时监测 + 手势交互太阳系"**
 
 ---
 
@@ -21,11 +21,11 @@ python Space_Data_Center.py
 ```
 
 **API keys are read from environment variables / `.env`** (see `.env.example`). Falls back to built-in demo keys if unset — teacher demo works with zero configuration.
-**Demo fallback data centralized in `demo_data.json`** — the system works fully offline.
+**兜底数据已内置在代码中** — 不联网也能完整运行（外部 API 失败时自动回退到内置真实/演示数据）。
 
 ---
 
-## v12.0 — New Visual Enhancements
+## 太阳系 3D 手势页（Page 2）
 
 ### Solar System 3D (Page 2)
 
@@ -44,7 +44,7 @@ python Space_Data_Center.py
 
 ### 1. Multi-Page Architecture (Page Navigation)
 
-Three independent pages with smooth CSS transitions and multiple navigation methods:
+Two independent pages with smooth CSS transitions and multiple navigation methods:
 
 | Page | Name | Key Features |
 |------|------|-------------|
@@ -54,7 +54,7 @@ Three independent pages with smooth CSS transitions and multiple navigation meth
 
 **Navigation methods:**
 - Sidebar tabs (click)
-- Keyboard shortcuts (`1`, `2`, `3`)
+- Keyboard shortcuts (`1`, `2`)
 - Touch swipe (mobile)
 - Hand swipe on Page 2 (MediaPipe — move hand to screen edge)
 
@@ -71,24 +71,23 @@ When the camera is enabled on Page 2, the system uses Google MediaPipe Hands to 
 
 The webcam feed appears in a small Picture-in-Picture overlay. Camera permission is requested only when the user clicks "CAMERA".
 
-### 3. Automatic Demo Mode (Bulletproof Fallback)
+### 3. 自动兜底（稳如老狗的容错）
 
-When any external API fails (network issues, timeout, server error), the system **automatically loads `demo_data.json`**:
+任意一个外部 API 失败（断网、超时、服务器出错）时，系统会自动回退到**代码内置的真实 / 演示数据**：
 
 ```
-Live API Request → Success? → Display live data
-                  ↓ Failure
-                  → Load demo_data.json → Display demo data (ZERO Null errors)
+实时 API 请求 → 成功? → 显示真实数据
+              ↓ 失败
+              → 回退内置兜底数据 → 显示兜底数据（绝不会出现空白 / 报错）
 ```
 
-**Demo data coverage (14 data keys):**
-- ISS position with 6 Macau flyby pass predictions (closest: 58.7km)
-- SpaceX Falcon 9 Starlink mission details
-- Earth/Mars/Moon images with scientific captions
-- Weather data for all 6 cities (Macau, Hong Kong, Guangzhou, Shenzhen, Beijing, Shanghai)
-- Solar storm monitoring (simulated quiet Sun)
+**兜底覆盖：**
+- ISS 位置：复用上一次真实坐标（绿点留在真实轨道，不会跳到澳门）
+- SpaceX 发射、地球/火星/月球影像、新闻、系外行星等均有内置示例
+- 天气：26 个城市的内置示例（澳门、香港、广州、深圳、北京、上海、台北…）
+- 太阳风暴：平静太阳演示值（NOAA + NASA DONKI 都连不上时才用）
 
-**The teacher will always see a fully functional dashboard** — even with no internet connection.
+**老师演示时永远能看到完整可用的仪表盘** —— 即使完全断网。
 
 ### 4. Industrial-Grade Backend
 
@@ -106,7 +105,7 @@ Live API Request → Success? → Display live data
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/` | GET | Serves the multi-page dashboard |
-| `/api/space/iss` | GET | ISS position + Macau DSN distance + pass predictions |
+| `/api/space/iss` | GET | ISS position + 与澳门直线距离 + pass predictions |
 | `/api/space/spacex` | GET | Latest SpaceX launch mission details |
 | `/api/space/space-body?type=` | GET | Celestial images (earth/mars/moon) |
 | `/api/space/weather?city=` | GET | Weather + AQI with multi-source fallback |
@@ -124,7 +123,6 @@ project/
   Space_Data_Center.py   Main Flask server (reads keys from .env)
   dashboard.html         Multi-page frontend (2 pages, Three.js, MediaPipe)
   solar-system.html      Gesture-controlled 3D solar system
-  blender_planets.py     Blender batch planet .glb generator
   requirements.txt       Python dependencies (3 packages)
   README.md              This documentation
   static/
@@ -161,7 +159,7 @@ project/
 | NASA Mars Rover | api.nasa.gov | Curiosity surface photos |
 | NASA DONKI | api.nasa.gov | Coronal Mass Ejection events |
 | NOAA SWPC | services.swpc.noaa.gov | Real-time solar wind plasma data |
-| ISS Now | api.open-notify.org | ISS real-time position |
+| ISS Now | api.wheretheiss.at | ISS real-time position |
 | Launch Library 2 | ll.thespacedevs.com | SpaceX launch missions |
 | Open-Meteo | api.open-meteo.com | City weather + AQI (primary) |
 | Open-Meteo | api.open-meteo.com | Free weather API (backup) |
@@ -173,4 +171,4 @@ project/
 
 - High School Computer Science Final Project — Grade 11 Science Stream
 - Tech Stack: Python (Flask) + HTML/CSS/JS (Three.js, MediaPipe Hands) + NASA/NOAA APIs
-- Version: 11.0 "Perfector Protocol"
+- Version: 1.0（高中期末项目）

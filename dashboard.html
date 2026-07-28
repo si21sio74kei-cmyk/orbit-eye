@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Global Deep Space Monitor v12.0</title>
+<title>轨道之眼 OrbitEye · 太空遥测仪表盘</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
@@ -230,12 +230,12 @@
   <div class="startup-hscan"></div>
   <div id="startup-content">
     <div id="startup-logo">
-      <span class="startup-title-main" data-text="DSM-7">DSM-7</span>
-      <span class="startup-ver">v12.0</span>
+      <span class="startup-title-main" data-text="轨道之眼">轨道之眼</span>
+      <span class="startup-ver">OrbitEye v1.0</span>
     </div>
     <div class="startup-divider"></div>
-    <div class="startup-subtitle-cn">全 球 深 空 環 境 智 能 監 測 平 台</div>
-    <div class="startup-sub-en">GLOBAL DEEP SPACE ENVIRONMENT INTELLIGENT MONITOR</div>
+    <div class="startup-subtitle-cn">太 空 环 境 实 时 监 测 仪 表 盘</div>
+    <div class="startup-sub-en">ORBITEYE · SPACE TELEMETRY DASHBOARD</div>
     <div id="startup-progress-ring">
       <svg width="80" height="80" viewBox="0 0 80 80">
         <circle class="bg" cx="40" cy="40" r="35"/>
@@ -245,10 +245,10 @@
     </div>
     <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
     <div class="startup-data-streams">
-      <div class="stream"><span class="s-dot"></span>DSN-14</div>
-      <div class="stream"><span class="s-dot"></span>铯钟同步</div>
-      <div class="stream"><span class="s-dot"></span>量子链路</div>
-      <div class="stream"><span class="s-dot"></span>深空阵列</div>
+      <div class="stream"><span class="s-dot"></span>ISS 实时轨道</div>
+      <div class="stream"><span class="s-dot"></span>NASA 天文图</div>
+      <div class="stream"><span class="s-dot"></span>火星天气</div>
+      <div class="stream"><span class="s-dot"></span>近地小行星</div>
     </div>
   </div>
   <div class="startup-scanline"></div>
@@ -256,13 +256,13 @@
 
 <button id="guide-toggle" onclick="toggleGuide()">?</button>
 <div id="guide-panel">
-  <h4>📖 操作教程 — DSM-7 全球深空监测 v12</h4>
+  <h4>📖 操作教程 — 轨道之眼 OrbitEye</h4>
   <div class="section">⌨️ 页面导航</div>
   <div class="item"><span class="key"><span class="tag key">1 / 2</span></span><span class="desc">切换到遥测 / 太阳系页面</span></div>
   <div class="item"><span class="key"><span class="tag key">Ctrl + R</span></span><span class="desc">强制刷新全部遥测数据</span></div>
   <div class="item"><span class="key"><span class="tag mouse">左侧导航栏</span></span><span class="desc">点击 DS / SS 按钮切换页面</span></div>
   <div class="section">📡 遥测仪表盘（Page 0 · TELEMETRY）</div>
-  <div class="item"><span class="desc" style="color:var(--dim);">左上 — 3D 地球仪：实时 ISS 位置 + 测控链路 + 轨道曲线</span></div>
+  <div class="item"><span class="desc" style="color:var(--dim);">左上 — 3D 地球仪：实时 ISS 位置 + 与澳门连线 + 轨道曲线</span></div>
   <div class="item"><span class="desc" style="color:var(--dim);">右上 — 发射任务 / 天体影像 · 每 2–5 分钟自动刷新</span></div>
   <div class="item"><span class="desc" style="color:var(--dim);">中部 — 太阳风暴 / 大气环境 / 近地小行星 · 悬浮卡片 hover 微倾</span></div>
   <div class="item"><span class="desc" style="color:var(--dim);">底部 — 天文图 / 火星天气 / 航天新闻 / 系外行星</span></div>
@@ -273,7 +273,7 @@
 </div>
 
 <nav id="nav">
-  <span class="logo">DSM</span>
+  <span class="logo">OrbitEye</span>
   <button class="nav-t on" data-pg="0"><span class="tip">TELEMETRY</span>DS</button>
   <button class="nav-t" data-pg="1"><span class="tip">SOLAR SYS</span>SS</button>
   <div id="nav-ind"></div>
@@ -289,8 +289,8 @@
       <div style="display:flex;align-items:center;gap:10px;">
         <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity=".6"/><circle cx="14" cy="14" r="4" fill="var(--primary)" opacity=".8"/></svg>
         <div>
-          <div style="font-family:var(--title);font-size:13px;letter-spacing:5px;color:#fff;text-shadow:0 0 16px rgba(56,189,248,.3);">GLOBAL · DEEP SPACE MONITOR</div>
-          <div style="font-size:9px;color:var(--dim);letter-spacing:3px;">SATELLITE TELEMETRY CONTROL STATION v12.0</div>
+          <div style="font-family:var(--title);font-size:13px;letter-spacing:5px;color:#fff;text-shadow:0 0 16px rgba(56,189,248,.3);">轨道之眼 · OrbitEye</div>
+          <div style="font-size:9px;color:var(--dim);letter-spacing:3px;">太空遥测仪表盘 v1.0</div>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;">
@@ -327,7 +327,7 @@
           <p class="flex justify-between text-[10px]"><span class="d">UTC 时间:</span><span id="iss-time" class="w">--</span></p>
         </div>
         <div id="mo-panel" class="p-2 border transition-all duration-300 text-[11px] rounded" style="border-color:rgba(56,189,248,.2);">
-          <p class="flex justify-between"><span class="text-sky-400">测控链路:</span><span id="mo-dist" class="text-white font-bold">--</span></p>
+          <p class="flex justify-between"><span class="text-sky-400">与澳门距离:</span><span id="mo-dist" class="text-white font-bold">--</span></p>
           <p class="flex justify-between text-[10px] mt-0.5"><span class="text-sky-400">天线状态:</span><span id="mo-link" class="text-gray-500">待机</span></p>
         </div>
         <div id="iss-pass" class="text-[10px] hidden"></div>

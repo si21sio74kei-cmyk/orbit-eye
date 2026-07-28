@@ -1,7 +1,7 @@
 
 // ═══════════════════════════════════════════════════════════
 
-// Global DSM-7 Dashboard — Core Application Logic
+// 轨道之眼 OrbitEye — 仪表盘核心逻辑
 
 // Extracted from dashboard.html
 
@@ -39,15 +39,15 @@ const res = await fetch(API_URL+'/iss');
 const d = await res.json();
 document.getElementById('iss-lat').innerText = parseFloat(d.iss_position.latitude).toFixed(4);
 document.getElementById('iss-lon').innerText = parseFloat(d.iss_position.longitude).toFixed(4);
-document.getElementById('iss-time').innerText = new Date(d.timestamp*1000).toLocaleTimeString('zh-TW',{hour12:false});    if (d.macao_dsn) {      document.getElementById('mo-dist').innerText = d.macao_dsn.distance_km+' km';
-document.getElementById('mo-link').innerText = d.macao_dsn.status;
-const mp = document.getElementById('mo-panel');      if (d.macao_dsn.alarm) {        mp.style.borderColor = 'rgba(248,113,113,.4)';        mp.style.background = 'rgba(248,113,113,.04)';
+document.getElementById('iss-time').innerText = new Date(d.timestamp*1000).toLocaleTimeString('zh-TW',{hour12:false});    if (d.macao_link) {      document.getElementById('mo-dist').innerText = d.macao_link.distance_km+' km';
+document.getElementById('mo-link').innerText = d.macao_link.status==='IN_RANGE'?'ISS 在澳门附近':'ISS 距澳门较远';
+const mp = document.getElementById('mo-panel');      if (d.macao_link.alarm) {        mp.style.borderColor = 'rgba(248,113,113,.4)';        mp.style.background = 'rgba(248,113,113,.04)';
 document.getElementById('mo-link').style.cssText = 'color:#f87171;font-weight:bold';      } else {        mp.style.borderColor = 'rgba(56,189,248,.2)';        mp.style.background = 'rgba(56,189,248,.015)';
 document.getElementById('mo-link').style.cssText = 'color:#7dd3fc;font-weight:normal';      }    }    if (d.pass_predictions?.length) {      
 const n = d.pass_predictions[0];
 document.getElementById('iss-pass').innerHTML = 'NEXT PASS: <span class="w">'+n.start_in_minutes+' min</span> ('+n.duration_minutes+' min)';
 document.getElementById('iss-pass').classList.remove('hidden');    }    if (d._source==='demo') {      document.getElementById('demo-badge').style.display='block';
-document.getElementById('bt-demo').style.display='inline';    }    document.getElementById('iss-tag').textContent = d._source==='demo'?'演示':'实时';    updGlobe(parseFloat(d.iss_position.latitude),parseFloat(d.iss_position.longitude),d.macao_dsn?.distance_km||0);    showContent('iss');  } catch(e) {    
+document.getElementById('bt-demo').style.display='inline';    }    document.getElementById('iss-tag').textContent = d._source==='demo'?'演示':'实时';    updGlobe(parseFloat(d.iss_position.latitude),parseFloat(d.iss_position.longitude),d.macao_link?.distance_km||0);    showContent('iss');  } catch(e) {    
 const ce = document.getElementById('iss-content');    if (ce && ce.classList.contains('hidden')) showError('iss','TELEMETRY LOST');  }}
 async function fetchSpaceBody() {  try {    
 const le = document.getElementById('space-loading');    le.innerHTML = 'TUNING...'; le.classList.add('shimmer'); le.classList.remove('hidden');
@@ -71,7 +71,7 @@ document.getElementById('w-wind').innerText = d.wind_dir?d.wind_dir+' '+d.wind_p
 document.getElementById('w-humid').innerText = d.humidity||'--';
 const windBar = document.getElementById('w-wind-bar'); if (windBar) windBar.style.width = Math.min(100,Math.max(8,((parseInt(d.wind_power)||0)/12*100)))+'%';    if (d._source==='demo') document.getElementById('demo-badge').style.display='block';    showContent('weather');  } catch(e) { showError('weather','OFFLINE'); }}
 
-// ── New API fetches (v12 expansion) ───────────────────
+// ── 各 API 拉取 ───────────────────────────────────────
 async function fetchAPOD() {  try {    
 const res = await fetch(API_URL+'/apod');
 const d = await res.json();
@@ -335,7 +335,7 @@ const offset=circumference*(1-pct/100);    circle.style.strokeDashoffset=offset;
 initStartupParticles();  startupRaf=requestAnimationFrame(drawStartupParticles);  
 window.addEventListener('resize',()=>{if(startupRaf)initStartupParticles();});
 const statusEl=document.getElementById('startup-status-text');
-const statusSeq=[    {t:0,   msg:'校准铯原子钟基准频率...',           prog:5},    {t:300, msg:'初始化量子加密通讯协议...',          prog:12},    {t:650, msg:'唤醒深空天线阵列 — DSN-14 指向中...',prog:22},    {t:1000,msg:'同步 GPS/北斗/GLONASS 时基...',      prog:35},    {t:1350,msg:'加载 CelesTrak 卫星轨道数据库...',   prog:48},    {t:1700,msg:'建立澳门测控站加密上行链路...',      prog:60},    {t:2000,msg:'启动太阳风粒子探测器阵列...',        prog:72},    {t:2300,msg:'校准大气环境传感器网络...',          prog:82},    {t:2600,msg:'DSM-7 AI 首席科学官上线...',         prog:90},    {t:2900,msg:'深空遥测数据流已锁定 — 系统就绪',   prog:100},  ];
+const statusSeq=[    {t:0,   msg:'正在获取 ISS 实时位置...',          prog:5},    {t:300, msg:'正在加载 NASA 每日天文图...',         prog:12},    {t:650, msg:'正在计算与澳门的直线距离...',         prog:22},    {t:1000,msg:'正在查询近期火箭发射计划...',         prog:35},    {t:1350,msg:'正在加载 CelesTrak 卫星轨道数据...',  prog:48},    {t:1700,msg:'正在获取火星天气数据...',             prog:60},    {t:2000,msg:'正在监测太阳风暴活动...',             prog:72},    {t:2300,msg:'正在校准大气环境传感器数据...',       prog:82},    {t:2600,msg:'正在整理近地小行星列表...',           prog:90},    {t:2900,msg:'遥测数据流已就绪',                    prog:100},  ];
 let seqIdx=0;
 const statusTimer=setInterval(()=>{    if(seqIdx<statusSeq.length){      
 const step=statusSeq[seqIdx];      if(statusEl)statusEl.textContent=step.msg;      targetProgress=step.prog;      seqIdx++;    }else{      clearInterval(statusTimer);    }  },300);  

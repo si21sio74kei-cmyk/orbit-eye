@@ -337,6 +337,15 @@ circle.style.width=pct+'%';    text.textContent=Math.round(pct)+'%';  }
 // ── 启动序列 ──
 initStartupParticles();  startupRaf=requestAnimationFrame(drawStartupParticles);  
 window.addEventListener('resize',()=>{if(startupRaf)initStartupParticles();});
+// ── anime.js 精致入场（轨道之眼）──
+if (window.anime) {
+  anime({ targets:'.startup-title span', opacity:[0,1], translateY:[16,0], delay:anime.stagger(110,{start:250}), duration:900, easing:'easeOutExpo' });
+  anime({ targets:'.startup-mark svg', rotate:'360deg', duration:12000, easing:'linear', loop:true });
+  anime({ targets:'#startup-progress-ring, .startup-status', opacity:[0,1], duration:800, delay:900, easing:'easeOutQuad' });
+  anime({ targets:'#startup-content', opacity:[0,1], duration:600, easing:'easeOutQuad' });
+} else {
+  document.querySelectorAll('.startup-title span').forEach(s=>s.style.opacity=1);
+}
 const statusEl=document.getElementById('startup-status-text');
 const statusSeq=[    {t:0,   msg:'正在获取 ISS 实时位置...',          prog:5},    {t:300, msg:'正在加载 NASA 每日天文图...',         prog:12},    {t:650, msg:'正在计算与澳门的直线距离...',         prog:22},    {t:1000,msg:'正在查询近期火箭发射计划...',         prog:35},    {t:1350,msg:'正在加载 CelesTrak 卫星轨道数据...',  prog:48},    {t:1700,msg:'正在获取火星天气数据...',             prog:60},    {t:2000,msg:'正在监测太阳风暴活动...',             prog:72},    {t:2300,msg:'正在校准大气环境传感器数据...',       prog:82},    {t:2600,msg:'正在整理近地小行星列表...',           prog:90},    {t:2900,msg:'遥测数据流已就绪',                    prog:100},  ];
 let seqIdx=0;

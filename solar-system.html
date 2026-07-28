@@ -21,6 +21,7 @@
 <canvas id="hand-overlay"></canvas>
 
 <div id="hud-top">🟢 轨道之眼 OrbitEye | ☝️边缘切星 | ✌️双指捏合=信息卡 | 🖐全张=近距 | ✊地球=卫星网 | ☄️小行星带 | 🌙月球</div>
+<div id="scale-note">示意图 · 行星大小与轨道间距为可视化缩放（非真实比例）；公转 / 自转速度比例采用真实数值</div>
 <div id="planet-card"></div>
 <div id="swipe-alert"></div>
 <div id="hover-zone-left"></div>
@@ -82,6 +83,11 @@
   </div>
 </div>
 <style>
+  #scale-note{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:6;pointer-events:none;
+    font-family:'Inter','Microsoft YaHei',sans-serif;font-size:11px;letter-spacing:.3px;color:#94a3b8;
+    background:rgba(10,15,28,.55);border:1px solid rgba(30,58,95,.6);border-radius:999px;
+    padding:5px 14px;backdrop-filter:blur(4px);white-space:nowrap;}
+  @media (max-width:640px){ #scale-note{font-size:9px;padding:4px 10px;white-space:normal;max-width:92vw;text-align:center;} }
   .g-item{color:#cbd5e1;font-size:12.5px;line-height:1.6;padding:9px 4px;border-bottom:1px solid rgba(30,58,95,.5);}
   .g-item b{color:#7dd3fc;font-weight:700;}
   #glossary::-webkit-scrollbar{width:6px;}

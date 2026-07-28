@@ -92,16 +92,20 @@
   0%,100%{border-color:rgba(56,189,248,.15)} 50%{border-color:rgba(56,189,248,.5)}
 }
 #startup-progress-ring {
-  width:80px;height:80px;position:relative;margin:12px 0 6px 0;animation:fadeInUp .8s .7s both;
+  width:240px;margin:14px auto 6px;animation:fadeInUp .8s .7s both;
 }
-#startup-progress-ring svg{transform:rotate(-90deg)}
-#startup-progress-ring .bg{fill:none;stroke:rgba(56,189,248,.05);stroke-width:1.5}
-#startup-progress-ring .fg{fill:none;stroke:#38bdf8;stroke-width:1.5;stroke-linecap:round;
-  stroke-dasharray:220;stroke-dashoffset:220;transition:stroke-dashoffset .5s ease;
-  filter:drop-shadow(0 0 6px #38bdf8) drop-shadow(0 0 14px rgba(56,189,248,.4));}
 #startup-progress-text {
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-family:'Share Tech Mono',monospace;font-size:14px;color:#38bdf8;letter-spacing:2px;
+  font-family:'Share Tech Mono',monospace;font-size:13px;color:#38bdf8;letter-spacing:2px;
+  text-align:center;margin-bottom:8px;
+}
+#startup-progress-ring .bar-track {
+  height:6px;width:100%;border-radius:3px;background:rgba(56,189,248,.08);overflow:hidden;
+}
+#startup-progress-circle {
+  height:6px;width:0%;border-radius:3px;
+  background:linear-gradient(90deg,#0ea5e9,#38bdf8,#7dd3fc);
+  box-shadow:0 0 10px rgba(56,189,248,.6);
+  transition:width .5s ease;
 }
 .startup-status {
   font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(56,189,248,.7);
@@ -237,11 +241,8 @@
     <div class="startup-subtitle-cn">太 空 环 境 实 时 监 测 仪 表 盘</div>
     <div class="startup-sub-en">ORBITEYE · SPACE TELEMETRY DASHBOARD</div>
     <div id="startup-progress-ring">
-      <svg width="80" height="80" viewBox="0 0 80 80">
-        <circle class="bg" cx="40" cy="40" r="35"/>
-        <circle class="fg" id="startup-progress-circle" cx="40" cy="40" r="35"/>
-      </svg>
       <div id="startup-progress-text">0%</div>
+      <div class="bar-track"><div id="startup-progress-circle"></div></div>
     </div>
     <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
     <div class="startup-data-streams">

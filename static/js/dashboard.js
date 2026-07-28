@@ -323,13 +323,11 @@ startupCtx.strokeStyle=`rgba(56,189,248,${.08+Math.sin(startupTime*1.5)*.03})`; 
 const cornerDist=Math.min(w,h)*.35;
 const corners=[      [40,40], [w-40,40], [w-40,h-40], [40,h-40]    ];    startupCtx.strokeStyle=`rgba(56,189,248,${.04+Math.sin(startupTime)*.02})`;    startupCtx.lineWidth=.3;    corners.forEach(([cx2,cy2])=>{      startupCtx.beginPath();      startupCtx.moveTo(cx2,cy2);      startupCtx.lineTo(cx+(cx2-cx)*.15,cy+(cy2-cy)*.15);      startupCtx.stroke();    });    startupRaf=requestAnimationFrame(drawStartupParticles);  }  
 
-// ── 进度环更新 ──  
+// ── 进度条更新 ──  
 function updateProgressRing(pct){    
 const circle=document.getElementById('startup-progress-circle');
 const text=document.getElementById('startup-progress-text');    if(!circle||!text)return;
-const circumference=2*Math.PI*35; 
-// r=35    
-const offset=circumference*(1-pct/100);    circle.style.strokeDashoffset=offset;    text.textContent=Math.round(pct)+'%';  }  
+circle.style.width=pct+'%';    text.textContent=Math.round(pct)+'%';  }  
 
 // ── 启动序列 ──
 initStartupParticles();  startupRaf=requestAnimationFrame(drawStartupParticles);  
@@ -340,7 +338,7 @@ let seqIdx=0;
 const statusTimer=setInterval(()=>{    if(seqIdx<statusSeq.length){      
 const step=statusSeq[seqIdx];      if(statusEl)statusEl.textContent=step.msg;      targetProgress=step.prog;      seqIdx++;    }else{      clearInterval(statusTimer);    }  },300);  
 
-// ── 进度环平滑动画 ──  
+// ── 进度条平滑动画 ──  
 function animProgress(){    if(document.getElementById('loading-overlay').classList.contains('hidden'))return;    startupProgress+=(targetProgress-startupProgress)*.08;    updateProgressRing(startupProgress);    requestAnimationFrame(animProgress);  }  requestAnimationFrame(animProgress);  
 
 // ── 完成淡出 ──  

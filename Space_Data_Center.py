@@ -13,6 +13,28 @@ from datetime import datetime, timedelta, timezone
 app = Flask(__name__)
 CORS(app)
 
+# ── Vercel rewrite 路径还原中间件 ──
+# Vercel 把所有请求 rewrite 到 /api/index 时，函数收到的 PATH_INFO 是改写目标
+# 而非用户访问的真实路径，导致所有路由 404/错乱。真实路径保存在
+# x-forwarded-path 头，以及 vercel.json destination 的 __path 查询参数。
+# 在请求分发前把 PATH_INFO 还原为真实路径。
+from urllib.parse import parse_qs as _parse_qs
+
+class _VercelPathMiddleware:
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        real = environ.get('HTTP_X_FORWARDED_PATH')
+        if not real:
+            q = _parse_qs(environ.get('QUERY_STRING', ''))
+            real = (q.get('__path') or [''])[0]
+        if real and real.startswith('/'):
+            environ['PATH_INFO'] = real
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = _VercelPathMiddleware(app.wsgi_app)
+
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 SAT_CACHE_FILE = BASE_DIR / ".satellite_cache.json"  # 持久缓存，避免限流时无数据

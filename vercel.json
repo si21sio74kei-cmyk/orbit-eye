@@ -4,9 +4,6 @@
     { "source": "/(.*)", "destination": "/api/index?__path=$1" }
   ],
   "functions": {
-    "api/index.py": {
-      "maxDuration": 60,
-      "includeFiles": "../static/**,../*.html,../*.py"
-    }
+    "api/index.py": { "maxDuration": 60 }
   }
 }

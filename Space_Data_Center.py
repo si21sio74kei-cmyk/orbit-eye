@@ -33,6 +33,12 @@ class _VercelPathMiddleware:
 
 app.wsgi_app = _VercelPathMiddleware(app.wsgi_app)
 
+# 部署版本标记：用于远程确认线上跑的是哪个版本的代码
+@app.after_request
+def _build_marker(resp):
+    resp.headers['X-Build'] = 'pathfix-1'
+    return resp
+
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 SAT_CACHE_FILE = BASE_DIR / ".satellite_cache.json"  # 持久缓存，避免限流时无数据

@@ -276,33 +276,63 @@ const filter=ctx.createBiquadFilter();filter.type='lowpass';filter.frequency.val
 window.addEventListener('DOMContentLoaded',()=>{  
 // ═══════════════════════════════════════════════════════  
 
-//  简约启动画面 — 细环进度 + 留白标题  
+//  启动画面 — animejs.com 风格：自描轨道 + 弹性逐字 + 鼠标互动  
 // ═══════════════════════════════════════════════════════  
-const startupRingFill=document.querySelector('.ring-fill');
-const startupRingCirc=2*Math.PI*56;
-let startupProgress=0,targetProgress=0;
+const startupCanvas=document.getElementById('startup-canvas');
+const startupCtx=startupCanvas?startupCanvas.getContext('2d'):null;
+const startupR=86, startupCirc=2*Math.PI*startupR;
+let startupProgress=0,targetProgress=0,startupRaf=null,startupStars=[];
+// ── 稀疏星点背景（无连线，保留深度但不杂乱）──
+function initStartupStars(){
+  if(!startupCtx)return;
+  startupCanvas.width=innerWidth;startupCanvas.height=innerHeight;
+  const n=Math.min(90,Math.floor(innerWidth*innerHeight/16000));
+  startupStars=[];
+  for(let i=0;i<n;i++)startupStars.push({x:Math.random()*startupCanvas.width,y:Math.random()*startupCanvas.height,
+    r:.6+Math.random()*1.4,vy:.05+Math.random()*.18,a:.15+Math.random()*.45});
+}
+function drawStartupStars(){
+  if(!startupCtx)return;
+  if(document.getElementById('loading-overlay').classList.contains('hidden')){startupRaf=null;return;}
+  const w=startupCanvas.width,h=startupCanvas.height;
+  startupCtx.clearRect(0,0,w,h);
+  for(const s of startupStars){
+    s.y-=s.vy; if(s.y<-4){s.y=h+4;s.x=Math.random()*w;}
+    startupCtx.beginPath();startupCtx.fillStyle='rgba(200,220,240,'+s.a+')';
+    startupCtx.arc(s.x,s.y,s.r,0,Math.PI*2);startupCtx.fill();
+  }
+  startupRaf=requestAnimationFrame(drawStartupStars);
+}
 // ── 进度环/百分比更新 ──
 function updateProgressRing(pct){
   const text=document.getElementById('startup-progress-text');
   if(text)text.textContent=Math.round(pct)+'%';
-  if(startupRingFill){
-    startupRingFill.style.strokeDasharray=startupRingCirc;
-    startupRingFill.style.strokeDashoffset=startupRingCirc*(1-pct/100);
-  }
+  const ring=document.querySelector('.emblem-progress');
+  if(ring){ring.style.strokeDasharray=startupCirc;ring.style.strokeDashoffset=startupCirc*(1-pct/100);}
 }
 // ── 启动序列 ──
 updateProgressRing(0);
-// ── anime.js 简约入场 ──
-if (window.anime) {
-  anime({ targets:'.startup-ring',          opacity:[0,1], scale:[.94,1], duration:1300, easing:'easeOutExpo' });
-  anime({ targets:'.startup-title span',    opacity:[0,1], translateY:[18,0], duration:1100,
-    delay:anime.stagger(90,{start:260}), easing:'easeOutExpo' });
-  anime({ targets:'.startup-cap',           opacity:[0,1], translateY:[10,0], duration:900, delay:760, easing:'easeOutQuad' });
-  anime({ targets:'.startup-status',        opacity:[0,1], duration:900, delay:960, easing:'easeOutQuad' });
-} else {
-  document.querySelectorAll('.startup-ring,.startup-title span,.startup-cap,.startup-status')
-    .forEach(s=>s.style.opacity=1);
+initStartupStars(); drawStartupStars();
+// ── anime.js 入场（animejs.com 招牌）──
+if(window.anime){
+  anime({targets:'.emblem-draw',strokeDashoffset:[anime.setDashoffset,0],easing:'easeInOutSine',duration:1600,delay:150});
+  anime({targets:'.startup-emblem',opacity:[0,1],scale:[.9,1],duration:1200,easing:'easeOutExpo'});
+  anime({targets:'.startup-title span',opacity:[0,1],scale:[.4,1],translateY:[40,0],rotate:[-25,0],
+    delay:anime.stagger(80,{start:520}),duration:1300,easing:'easeOutElastic(1,.6)'});
+  anime({targets:'.startup-cap',opacity:[0,1],translateY:[10,0],duration:900,delay:1100,easing:'easeOutQuad'});
+  anime({targets:'.startup-status',opacity:[0,1],duration:900,delay:1250,easing:'easeOutQuad'});
+}else{
+  document.querySelectorAll('.startup-emblem,.startup-title span,.startup-cap,.startup-status').forEach(s=>s.style.opacity=1);
+  const d=document.querySelector('.emblem-draw'); if(d)d.style.strokeDashoffset=0;
 }
+// ── 鼠标互动：柔光跟随 + hero 轻微视差 ──
+const startupGlow=document.getElementById('startup-glow');
+window.addEventListener('mousemove',e=>{
+  if(startupGlow){startupGlow.style.left=e.clientX+'px';startupGlow.style.top=e.clientY+'px';}
+  if(window.anime){const dx=(e.clientX/innerWidth-.5),dy=(e.clientY/innerHeight-.5);
+    anime({targets:'.hero',translateX:dx*22,translateY:dy*16,duration:800,easing:'easeOutQuad'});}
+});
+window.addEventListener('resize',()=>{if(startupRaf)initStartupStars();});
 const statusEl=document.getElementById('startup-status-text');
 const statusSeq=[    {t:0,   msg:'正在获取 ISS 实时位置...',          prog:5},    {t:300, msg:'正在加载 NASA 每日天文图...',         prog:12},    {t:650, msg:'正在计算与澳门的直线距离...',         prog:22},    {t:1000,msg:'正在查询近期火箭发射计划...',         prog:35},    {t:1350,msg:'正在加载 CelesTrak 卫星轨道数据...',  prog:48},    {t:1700,msg:'正在获取火星天气数据...',             prog:60},    {t:2000,msg:'正在监测太阳风暴活动...',             prog:72},    {t:2300,msg:'正在校准大气环境传感器数据...',       prog:82},    {t:2600,msg:'正在整理近地小行星列表...',           prog:90},    {t:2900,msg:'遥测数据流已就绪',                    prog:100},  ];
 let seqIdx=0;
@@ -314,7 +344,7 @@ const statusTimer=setInterval(()=>{    if(seqIdx<statusSeq.length){
 function animProgress(){    if(document.getElementById('loading-overlay').classList.contains('hidden'))return;    startupProgress+=(targetProgress-startupProgress)*.08;    updateProgressRing(startupProgress);    requestAnimationFrame(animProgress);  }  requestAnimationFrame(animProgress);
 
 // ── 完成淡出 ──
-const finishStartup=()=>{    clearInterval(statusTimer);    if(statusEl)statusEl.textContent='✅ 深空网络全部节点在线';    targetProgress=100;    setTimeout(()=>{
+const finishStartup=()=>{    clearInterval(statusTimer);    if(startupRaf)cancelAnimationFrame(startupRaf);    if(statusEl)statusEl.textContent='✅ 深空网络全部节点在线';    targetProgress=100;    setTimeout(()=>{
   document.getElementById('loading-overlay').classList.add('hidden');
       // 延迟600ms等CSS过渡完成后刷新globe真实尺寸
       setTimeout(()=>{ if(window._resumeGlobe) window._resumeGlobe(); },600);

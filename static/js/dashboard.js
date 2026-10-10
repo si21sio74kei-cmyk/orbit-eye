@@ -303,26 +303,26 @@ function drawStartupStars(){
   }
   startupRaf=requestAnimationFrame(drawStartupStars);
 }
-// ── 进度环/百分比更新 ──
+// ── 进度更新（底部极简进度光带）──
 function updateProgressRing(pct){
-  const text=document.getElementById('startup-progress-text');
-  if(text)text.textContent=Math.round(pct)+'%';
-  const ring=document.querySelector('.emblem-progress');
-  if(ring){ring.style.strokeDasharray=startupCirc;ring.style.strokeDashoffset=startupCirc*(1-pct/100);}
+  const fill=document.querySelector('.startup-progress-fill');
+  if(fill)fill.style.width=Math.round(pct)+'%';
 }
 // ── 启动序列 ──
 updateProgressRing(0);
 initStartupStars(); drawStartupStars();
-// ── anime.js 入场（animejs.com 招牌）──
+// ── anime.js 入场（animejs.com 招牌：自描线条 + 弹性逐字 + 克制留白）──
 if(window.anime){
-  anime({targets:'.emblem-draw',strokeDashoffset:[anime.setDashoffset,0],easing:'easeInOutSine',duration:1600,delay:150});
-  anime({targets:'.startup-emblem',opacity:[0,1],scale:[.9,1],duration:1200,easing:'easeOutExpo'});
-  anime({targets:'.startup-title span',opacity:[0,1],scale:[.4,1],translateY:[40,0],rotate:[-25,0],
-    delay:anime.stagger(80,{start:520}),duration:1300,easing:'easeOutElastic(1,.6)'});
-  anime({targets:'.startup-cap',opacity:[0,1],translateY:[10,0],duration:900,delay:1100,easing:'easeOutQuad'});
-  anime({targets:'.startup-status',opacity:[0,1],duration:900,delay:1250,easing:'easeOutQuad'});
+  anime({targets:'.emblem-draw',strokeDashoffset:[anime.setDashoffset,0],easing:'easeInOutSine',duration:1800,delay:120});
+  anime({targets:'.startup-emblem',opacity:[0,1],scale:[.92,1],duration:1200,easing:'easeOutExpo'});
+  anime({targets:'.startup-title span',opacity:[0,1],scale:[.6,1],translateY:[34,0],rotate:[-8,0],
+    delay:anime.stagger(90,{start:560}),duration:1300,easing:'easeOutElastic(1,.65)'});
+  anime({targets:'.startup-wordmark',opacity:[0,1],translateY:[12,0],duration:900,delay:1020,easing:'easeOutQuad'});
+  anime({targets:'.startup-cap',opacity:[0,1],translateY:[10,0],duration:900,delay:1140,easing:'easeOutQuad'});
+  anime({targets:'.startup-progress',opacity:[0,1],duration:800,delay:880,easing:'easeOutQuad'});
+  anime({targets:'.startup-status',opacity:[0,1],duration:900,delay:1280,easing:'easeOutQuad'});
 }else{
-  document.querySelectorAll('.startup-emblem,.startup-title span,.startup-cap,.startup-status').forEach(s=>s.style.opacity=1);
+  document.querySelectorAll('.startup-emblem,.startup-title span,.startup-wordmark,.startup-cap,.startup-progress,.startup-status').forEach(s=>s.style.opacity=1);
   const d=document.querySelector('.emblem-draw'); if(d)d.style.strokeDashoffset=0;
 }
 // ── 鼠标互动：柔光跟随 + hero 轻微视差 ──

@@ -180,6 +180,17 @@ def solar():
 def static_files(filename):
     return send_from_directory(str(STATIC_DIR), filename)
 
+# ── 临时诊断路由：确认 Vercel 把原始路径放在 header 还是 query ──
+@app.route('/__diag')
+def _diag():
+    return jsonify({
+        'path_info': request.path,
+        'query_string': request.query_string.decode(),
+        'x_forwarded_path': request.headers.get('x-forwarded-path'),
+        'x_vercel_id': request.headers.get('x-vercel-id'),
+        'script_name': request.environ.get('SCRIPT_NAME'),
+    })
+
 # [卡片1] ISS 实时位置 + 与澳门的直线距离（澳门只是用来比对的一个参考点，并非测控站）
 def _build_iss(lat, lon, ts, src):
     """构造 ISS 接口响应（直播 / 缓存共用），避免重复代码"""

@@ -25,12 +25,7 @@ class _VercelPathMiddleware:
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        real = environ.get('HTTP_X_FORWARDED_PATH')
-        if not real:
-            q = _parse_qs(environ.get('QUERY_STRING', ''))
-            real = (q.get('__path') or [''])[0]
-        if real and real.startswith('/'):
-            environ['PATH_INFO'] = real
+        # [DIAG] 临时直通：保留 Vercel 传入的原始 PATH_INFO 以便诊断
         return self.wsgi_app(environ, start_response)
 
 app.wsgi_app = _VercelPathMiddleware(app.wsgi_app)
@@ -166,11 +161,19 @@ def moon_phase():
 def index():
     return send_file(str(BASE_DIR / "dashboard.html"))
 
-# Vercel 函数路径兜底：直接命中 /api/index(.py) 时也返回首页，避免 404
+# [DIAG] 临时诊断：打印 Vercel 实际传入的原始 PATH_INFO / 请求头
 @app.route('/api/index')
 @app.route('/api/index.py')
 def api_entry():
-    return index()
+    hdr = {k: v for k, v in request.headers.items()
+           if k.lower().startswith(('x-', 'host', 'content'))}
+    return jsonify({
+        'PATH_INFO': request.environ.get('PATH_INFO'),
+        'SCRIPT_NAME': request.environ.get('SCRIPT_NAME'),
+        'RAW_URI': request.environ.get('RAW_URI'),
+        'QUERY_STRING': request.environ.get('QUERY_STRING'),
+        'headers': hdr,
+    })
 
 @app.route('/solar')
 def solar():

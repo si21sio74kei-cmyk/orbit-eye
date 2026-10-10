@@ -144,6 +144,12 @@ def moon_phase():
 def index():
     return send_file(str(BASE_DIR / "dashboard.html"))
 
+# Vercel 函数路径兜底：直接命中 /api/index(.py) 时也返回首页，避免 404
+@app.route('/api/index')
+@app.route('/api/index.py')
+def api_entry():
+    return index()
+
 @app.route('/solar')
 def solar():
     return send_file(str(BASE_DIR / "solar-system.html"))

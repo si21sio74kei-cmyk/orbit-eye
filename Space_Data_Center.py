@@ -5,6 +5,7 @@
 Usage: python Space_Data_Center.py  →  http://127.0.0.1:5500
 """
 from flask import Flask, jsonify, request, Response, send_file, send_from_directory
+from werkzeug.exceptions import NotFound
 from flask_cors import CORS
 import requests, math, time, json, os
 from pathlib import Path
@@ -26,7 +27,7 @@ class _VercelPathMiddleware:
 
     def __call__(self, environ, start_response):
         q = _parse_qs(environ.get('QUERY_STRING', ''))
-        real = (q.get('__path') or [''])[0]
+        real = (q.get('__path') or q.get('api_path') or [''])[0]
         if real and real.startswith('/'):
             environ['PATH_INFO'] = real
         return self.wsgi_app(environ, start_response)
@@ -170,11 +171,29 @@ def moon_phase():
 def index():
     return send_file(str(BASE_DIR / "dashboard.html"))
 
-# Vercel 函数路径兜底：直接命中 /api/index(.py) 时返回首页，避免 404
+# Vercel 入口：rewrite 把所有请求以 ?__path=原始路径 转到本函数。
+# 不依赖环境变量（Vercel 新版 CLI 对后端框架的路径语义会变），按查询参数确定性分发
 @app.route('/api/index')
 @app.route('/api/index.py')
 def api_entry():
-    return index()
+    real_path = (request.args.get('__path') or request.args.get('api_path') or '/').strip()
+    if not real_path.startswith('/'):
+        real_path = '/' + real_path
+    try:
+        adapter = app.url_map.bind('')
+        endpoint, values = adapter.match(real_path)
+    except NotFound:
+        return jsonify({"error": f"未知路径 {real_path}"}), 404
+    # 空参数或自指：按首页处理，避免无限递归
+    if endpoint == 'api_entry':
+        return index()
+    # 内层请求去掉路径透传参数，防止递归与污染
+    inner_args = request.args.copy()
+    inner_args.poplist('__path')
+    inner_args.poplist('api_path')
+    view = app.view_functions[endpoint]
+    with app.test_request_context(real_path, query_string=inner_args):
+        return view(**values)
 
 @app.route('/solar')
 def solar():

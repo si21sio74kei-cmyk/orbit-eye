@@ -25,7 +25,10 @@ class _VercelPathMiddleware:
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        # [DIAG] 临时直通：保留 Vercel 传入的原始 PATH_INFO 以便诊断
+        q = _parse_qs(environ.get('QUERY_STRING', ''))
+        real = (q.get('__path') or [''])[0]
+        if real and real.startswith('/'):
+            environ['PATH_INFO'] = real
         return self.wsgi_app(environ, start_response)
 
 app.wsgi_app = _VercelPathMiddleware(app.wsgi_app)
@@ -161,19 +164,11 @@ def moon_phase():
 def index():
     return send_file(str(BASE_DIR / "dashboard.html"))
 
-# [DIAG] 临时诊断：打印 Vercel 实际传入的原始 PATH_INFO / 请求头
+# Vercel 函数路径兜底：直接命中 /api/index(.py) 时返回首页，避免 404
 @app.route('/api/index')
 @app.route('/api/index.py')
 def api_entry():
-    hdr = {k: v for k, v in request.headers.items()
-           if k.lower().startswith(('x-', 'host', 'content'))}
-    return jsonify({
-        'PATH_INFO': request.environ.get('PATH_INFO'),
-        'SCRIPT_NAME': request.environ.get('SCRIPT_NAME'),
-        'RAW_URI': request.environ.get('RAW_URI'),
-        'QUERY_STRING': request.environ.get('QUERY_STRING'),
-        'headers': hdr,
-    })
+    return index()
 
 @app.route('/solar')
 def solar():
@@ -182,17 +177,6 @@ def solar():
 @app.route('/static/<path:filename>')
 def static_files(filename):
     return send_from_directory(str(STATIC_DIR), filename)
-
-# ── 临时诊断路由：确认 Vercel 把原始路径放在 header 还是 query ──
-@app.route('/__diag')
-def _diag():
-    return jsonify({
-        'path_info': request.path,
-        'query_string': request.query_string.decode(),
-        'x_forwarded_path': request.headers.get('x-forwarded-path'),
-        'x_vercel_id': request.headers.get('x-vercel-id'),
-        'script_name': request.environ.get('SCRIPT_NAME'),
-    })
 
 # [卡片1] ISS 实时位置 + 与澳门的直线距离（澳门只是用来比对的一个参考点，并非测控站）
 def _build_iss(lat, lon, ts, src):

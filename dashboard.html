@@ -46,13 +46,8 @@
 .emblem-head { position:absolute;width:9px;height:9px;border-radius:50%;
   background:#eaf4fb;box-shadow:0 0 16px 4px rgba(125,211,252,1);
   transform:translate(-50%,-50%);left:50%;top:7%;opacity:0; }
-.emblem-center { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  gap:1px;opacity:0; }
-.emblem-pct { font-family:'Clash Display','Sora','Space Grotesk',sans-serif;font-weight:600;
-  font-size:34px;line-height:1;color:#f4f7fa;letter-spacing:1px;
-  text-shadow:0 0 18px rgba(125,211,252,.35); }
-.emblem-pct-sign { font-family:'Clash Display','Sora','Space Grotesk',sans-serif;font-weight:500;
-  font-size:14px;color:rgba(176,196,214,.7);align-self:flex-start;margin-top:4px; }
+.startup-pct { font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:5px;
+  color:rgba(186,206,224,.55);margin-top:22px;opacity:0; }
 /* ── 标题：英文品牌名（Clash Display 高级展示字体 + 逐字弹出）── */
 .startup-title { display:flex;align-items:center;gap:.02em;margin-right:-.02em;margin-left:.14em;
   font-family:'Clash Display','Sora','Space Grotesk','Inter',sans-serif;
@@ -150,7 +145,6 @@
           <circle class="emblem-draw"  cx="100" cy="100" r="86"/>
         </svg>
         <div class="emblem-head"></div>
-        <div class="emblem-center"><span id="startup-pct" class="emblem-pct">0</span><span class="emblem-pct-sign">%</span></div>
       </div>
       <div class="startup-title">
         <span>O</span><span>R</span><span>B</span><span>I</span><span>T</span>
@@ -158,6 +152,7 @@
         <span>E</span><span>Y</span><span>E</span>
       </div>
       <div class="startup-cap">太空遥测仪表盘 · SPACE TELEMETRY</div>
+      <div class="startup-pct"><span id="startup-pct">0</span>%</div>
       <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
     </div>
   </div>

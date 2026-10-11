@@ -321,13 +321,13 @@ initStartupStars(); drawStartupStars();
 if(window.anime){
   anime({targets:'.startup-emblem',opacity:[0,1],scale:[.92,1],duration:1200,easing:'easeOutExpo'});
   anime({targets:'.emblem-head',opacity:[0,1],duration:700,delay:500,easing:'easeOutQuad'});
-  anime({targets:'.emblem-center',opacity:[0,1],duration:800,delay:520,easing:'easeOutQuad'});
+  anime({targets:'.startup-pct',opacity:[0,1],duration:800,delay:520,easing:'easeOutQuad'});
   anime({targets:'.startup-title span',opacity:[0,1],scale:[0,1],translateY:[60,0],rotate:[-35,0],
     delay:anime.stagger(110,{start:540}),duration:1400,easing:'easeOutElastic(1,.55)'});
   anime({targets:'.startup-cap',opacity:[0,1],translateY:[10,0],duration:900,delay:1150,easing:'easeOutQuad'});
   anime({targets:'.startup-status',opacity:[0,1],duration:900,delay:1300,easing:'easeOutQuad'});
 }else{
-  document.querySelectorAll('.startup-emblem,.emblem-head,.emblem-center,.startup-title span,.startup-cap,.startup-status').forEach(s=>s.style.opacity=1);
+  document.querySelectorAll('.startup-emblem,.emblem-head,.startup-pct,.startup-title span,.startup-cap,.startup-status').forEach(s=>s.style.opacity=1);
 }
 // ── 鼠标互动：柔光跟随 + hero 轻微视差 ──
 const startupGlow=document.getElementById('startup-glow');

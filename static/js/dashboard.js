@@ -303,27 +303,31 @@ function drawStartupStars(){
   }
   startupRaf=requestAnimationFrame(drawStartupStars);
 }
-// ── 进度更新（底部极简进度光带）──
+// ── 进度更新（圆形进度环 + 领头点 + 圆心百分比）──
 function updateProgressRing(pct){
-  const fill=document.querySelector('.startup-progress-fill');
-  if(fill)fill.style.width=Math.round(pct)+'%';
+  const v=Math.max(0,Math.min(100,Math.round(pct)));
+  const ring=document.querySelector('.emblem-draw');
+  if(ring){ring.style.strokeDasharray=startupCirc;ring.style.strokeDashoffset=startupCirc*(1-v/100);}
+  const head=document.querySelector('.emblem-head');
+  if(head){const ang=(-90+v/100*360)*Math.PI/180,rpx=86*(172/200);
+    head.style.left=(86+rpx*Math.cos(ang))+'px';head.style.top=(86+rpx*Math.sin(ang))+'px';}
+  const pctEl=document.getElementById('startup-pct');
+  if(pctEl)pctEl.textContent=v;
 }
 // ── 启动序列 ──
 updateProgressRing(0);
 initStartupStars(); drawStartupStars();
-// ── anime.js 入场（animejs.com 招牌：自描线条 + 弹性逐字 + 克制留白）──
+// ── anime.js 入场（animejs.com 招牌：进度环随加载自描 + 逐字弹性弹出 + 克制留白）──
 if(window.anime){
-  anime({targets:'.emblem-draw',strokeDashoffset:[anime.setDashoffset,0],easing:'easeInOutSine',duration:1800,delay:120});
   anime({targets:'.startup-emblem',opacity:[0,1],scale:[.92,1],duration:1200,easing:'easeOutExpo'});
-  anime({targets:'.startup-title span',opacity:[0,1],scale:[.6,1],translateY:[34,0],rotate:[-8,0],
-    delay:anime.stagger(90,{start:560}),duration:1300,easing:'easeOutElastic(1,.65)'});
-  anime({targets:'.startup-wordmark',opacity:[0,1],translateY:[12,0],duration:900,delay:1020,easing:'easeOutQuad'});
-  anime({targets:'.startup-cap',opacity:[0,1],translateY:[10,0],duration:900,delay:1140,easing:'easeOutQuad'});
-  anime({targets:'.startup-progress',opacity:[0,1],duration:800,delay:880,easing:'easeOutQuad'});
-  anime({targets:'.startup-status',opacity:[0,1],duration:900,delay:1280,easing:'easeOutQuad'});
+  anime({targets:'.emblem-head',opacity:[0,1],duration:700,delay:500,easing:'easeOutQuad'});
+  anime({targets:'.emblem-center',opacity:[0,1],duration:800,delay:520,easing:'easeOutQuad'});
+  anime({targets:'.startup-title span',opacity:[0,1],scale:[0,1],translateY:[60,0],rotate:[-35,0],
+    delay:anime.stagger(110,{start:540}),duration:1400,easing:'easeOutElastic(1,.55)'});
+  anime({targets:'.startup-cap',opacity:[0,1],translateY:[10,0],duration:900,delay:1150,easing:'easeOutQuad'});
+  anime({targets:'.startup-status',opacity:[0,1],duration:900,delay:1300,easing:'easeOutQuad'});
 }else{
-  document.querySelectorAll('.startup-emblem,.startup-title span,.startup-wordmark,.startup-cap,.startup-progress,.startup-status').forEach(s=>s.style.opacity=1);
-  const d=document.querySelector('.emblem-draw'); if(d)d.style.strokeDashoffset=0;
+  document.querySelectorAll('.startup-emblem,.emblem-head,.emblem-center,.startup-title span,.startup-cap,.startup-status').forEach(s=>s.style.opacity=1);
 }
 // ── 鼠标互动：柔光跟随 + hero 轻微视差 ──
 const startupGlow=document.getElementById('startup-glow');

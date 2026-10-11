@@ -36,17 +36,23 @@
   transform:translate(-50%,-50%);transition:left .6s ease,top .6s ease;mix-blend-mode:screen; }
 #startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center; }
 .hero { display:flex;flex-direction:column;align-items:center;justify-content:center;will-change:transform; }
-/* ── 中央徽标：自描轨道 + 行星绕行（极简）── */
+/* ── 中央徽标：真实进度环 + 发光领头点 + 圆心百分比 ── */
 .startup-emblem { position:relative;width:172px;height:172px;margin-bottom:52px;opacity:0; }
 .emblem-svg { position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible; }
-.emblem-track { fill:none;stroke:rgba(226,240,250,.08);stroke-width:1.4; }
-.emblem-draw { fill:none;stroke:#7dd3fc;stroke-width:1.8;stroke-linecap:round;
+.emblem-track { fill:none;stroke:rgba(226,240,250,.07);stroke-width:1.4; }
+.emblem-draw { fill:none;stroke:#7dd3fc;stroke-width:2.2;stroke-linecap:round;
   stroke-dasharray:540;stroke-dashoffset:540;
-  filter:drop-shadow(0 0 8px rgba(125,211,252,.7)); }
-.orbit-spin { position:absolute;inset:0;animation:orbitSpin 9s linear infinite; }
-.orbit-planet { position:absolute;top:14px;left:50%;width:6px;height:6px;border-radius:50%;
-  transform:translate(-50%,-50%);background:#eaf4fb;box-shadow:0 0 14px 3px rgba(125,211,252,.9); }
-@keyframes orbitSpin { to { transform:rotate(360deg); } }
+  filter:drop-shadow(0 0 8px rgba(125,211,252,.75)); }
+.emblem-head { position:absolute;width:9px;height:9px;border-radius:50%;
+  background:#eaf4fb;box-shadow:0 0 16px 4px rgba(125,211,252,1);
+  transform:translate(-50%,-50%);left:50%;top:7%;opacity:0; }
+.emblem-center { position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  gap:1px;opacity:0; }
+.emblem-pct { font-family:'Clash Display','Sora','Space Grotesk',sans-serif;font-weight:600;
+  font-size:34px;line-height:1;color:#f4f7fa;letter-spacing:1px;
+  text-shadow:0 0 18px rgba(125,211,252,.35); }
+.emblem-pct-sign { font-family:'Clash Display','Sora','Space Grotesk',sans-serif;font-weight:500;
+  font-size:14px;color:rgba(176,196,214,.7);align-self:flex-start;margin-top:4px; }
 /* ── 标题：英文品牌名（Clash Display 高级展示字体 + 逐字弹出）── */
 .startup-title { display:flex;align-items:center;gap:.02em;margin-right:-.02em;margin-left:.14em;
   font-family:'Clash Display','Sora','Space Grotesk','Inter',sans-serif;
@@ -58,18 +64,6 @@
 /* ── 副标题（控制台风）── */
 .startup-cap { font-family:'Share Tech Mono',monospace;font-size:10px;
   letter-spacing:5px;color:rgba(190,205,220,.45);margin-top:18px;opacity:0; }
-/* ── 加载条（加粗圆角胶囊 + 流光扫过）── */
-.startup-progress { width:260px;height:3px;background:rgba(125,211,252,.1);border-radius:99px;
-  margin-top:36px;overflow:hidden;opacity:0;box-shadow:inset 0 0 0 1px rgba(125,211,252,.08); }
-.startup-progress-fill { position:relative;width:0%;height:100%;border-radius:99px;
-  background:linear-gradient(90deg,#22d3ee,#38bdf8,#7dd3fc);
-  box-shadow:0 0 16px rgba(56,189,248,.9);transition:width .35s cubic-bezier(.4,0,.2,1); }
-.startup-progress-fill::after { content:"";position:absolute;inset:0;border-radius:99px;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
-  transform:translateX(-100%);animation:barShimmer 1.5s ease-in-out infinite; }
-@keyframes barShimmer { 0%{transform:translateX(-100%)} 60%,100%{transform:translateX(180%)} }
-.startup-progress-pct { font-family:'Clash Display','Sora','Space Grotesk',sans-serif;font-weight:500;
-  font-size:12px;letter-spacing:4px;color:rgba(186,206,224,.8);margin-top:14px;opacity:0; }
 /* ── 状态小字（控制台风）── */
 .startup-status { font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,.34);
   letter-spacing:2px;margin-top:28px;display:flex;align-items:center;gap:8px;opacity:0; }
@@ -155,7 +149,8 @@
           <circle class="emblem-track" cx="100" cy="100" r="86"/>
           <circle class="emblem-draw"  cx="100" cy="100" r="86"/>
         </svg>
-        <div class="orbit-spin"><span class="orbit-planet"></span></div>
+        <div class="emblem-head"></div>
+        <div class="emblem-center"><span id="startup-pct" class="emblem-pct">0</span><span class="emblem-pct-sign">%</span></div>
       </div>
       <div class="startup-title">
         <span>O</span><span>R</span><span>B</span><span>I</span><span>T</span>
@@ -163,8 +158,6 @@
         <span>E</span><span>Y</span><span>E</span>
       </div>
       <div class="startup-cap">太空遥测仪表盘 · SPACE TELEMETRY</div>
-      <div class="startup-progress"><div class="startup-progress-fill"></div></div>
-      <div class="startup-progress-pct"><span id="startup-pct">0</span>%</div>
       <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
     </div>
   </div>

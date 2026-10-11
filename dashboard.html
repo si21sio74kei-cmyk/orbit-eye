@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OrbitEye · 太空遥测仪表盘</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&family=Space+Grotesk:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&family=Space+Grotesk:wght@300;400;500;700&family=Sora:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -46,24 +47,29 @@
 .orbit-planet { position:absolute;top:14px;left:50%;width:6px;height:6px;border-radius:50%;
   transform:translate(-50%,-50%);background:#eaf4fb;box-shadow:0 0 14px 3px rgba(125,211,252,.9); }
 @keyframes orbitSpin { to { transform:rotate(360deg); } }
-/* ── 标题：英文品牌名（Space Grotesk 高级几何无衬线 + 逐字弹出）── */
-.startup-title { display:flex;align-items:center;gap:.04em;margin-right:-.04em;margin-left:.16em;
-  font-family:'Space Grotesk','Inter',sans-serif;
-  font-size:clamp(48px,8vw,72px);font-weight:500;letter-spacing:.16em;
+/* ── 标题：英文品牌名（Clash Display 高级展示字体 + 逐字弹出）── */
+.startup-title { display:flex;align-items:center;gap:.02em;margin-right:-.02em;margin-left:.14em;
+  font-family:'Clash Display','Sora','Space Grotesk','Inter',sans-serif;
+  font-size:clamp(46px,7.5vw,68px);font-weight:600;letter-spacing:.12em;
   color:#f4f7fa;will-change:transform,opacity;
   text-shadow:0 2px 30px rgba(125,211,252,.22); }
 .startup-title span { display:inline-block;opacity:0; }
-.startup-space { width:.34em;height:1px; }
+.startup-space { width:.3em;height:1px; }
 /* ── 副标题（控制台风）── */
 .startup-cap { font-family:'Share Tech Mono',monospace;font-size:10px;
   letter-spacing:5px;color:rgba(190,205,220,.45);margin-top:18px;opacity:0; }
-/* ── 加载条 ── */
-.startup-progress { width:240px;height:2px;background:rgba(125,211,252,.14);
-  border-radius:2px;margin-top:34px;overflow:hidden;opacity:0; }
-.startup-progress-fill { width:0%;height:100%;background:linear-gradient(90deg,#38bdf8,#7dd3fc);
-  box-shadow:0 0 14px rgba(56,189,248,.8);transition:width .35s cubic-bezier(.4,0,.2,1); }
-.startup-progress-pct { font-family:'Space Grotesk',sans-serif;font-weight:400;
-  font-size:11px;letter-spacing:3px;color:rgba(176,196,214,.7);margin-top:12px;opacity:0; }
+/* ── 加载条（加粗圆角胶囊 + 流光扫过）── */
+.startup-progress { width:260px;height:3px;background:rgba(125,211,252,.1);border-radius:99px;
+  margin-top:36px;overflow:hidden;opacity:0;box-shadow:inset 0 0 0 1px rgba(125,211,252,.08); }
+.startup-progress-fill { position:relative;width:0%;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,#22d3ee,#38bdf8,#7dd3fc);
+  box-shadow:0 0 16px rgba(56,189,248,.9);transition:width .35s cubic-bezier(.4,0,.2,1); }
+.startup-progress-fill::after { content:"";position:absolute;inset:0;border-radius:99px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);
+  transform:translateX(-100%);animation:barShimmer 1.5s ease-in-out infinite; }
+@keyframes barShimmer { 0%{transform:translateX(-100%)} 60%,100%{transform:translateX(180%)} }
+.startup-progress-pct { font-family:'Clash Display','Sora','Space Grotesk',sans-serif;font-weight:500;
+  font-size:12px;letter-spacing:4px;color:rgba(186,206,224,.8);margin-top:14px;opacity:0; }
 /* ── 状态小字（控制台风）── */
 .startup-status { font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,.34);
   letter-spacing:2px;margin-top:28px;display:flex;align-items:center;gap:8px;opacity:0; }

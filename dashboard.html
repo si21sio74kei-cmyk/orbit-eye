@@ -37,17 +37,22 @@
 #startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center; }
 .hero { display:flex;flex-direction:column;align-items:center;justify-content:center;will-change:transform; }
 /* ── 中央徽标：真实进度环 + 发光领头点 + 圆心百分比 ── */
-.startup-emblem { position:relative;width:172px;height:172px;margin-bottom:52px;opacity:0; }
+.startup-emblem { position:relative;width:172px;height:172px;margin-bottom:40px;opacity:0; }
 .emblem-svg { position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible; }
 .emblem-track { fill:none;stroke:rgba(226,240,250,.07);stroke-width:1.4; }
 .emblem-draw { fill:none;stroke:#7dd3fc;stroke-width:2.2;stroke-linecap:round;
   stroke-dasharray:540;stroke-dashoffset:540;
   filter:drop-shadow(0 0 8px rgba(125,211,252,.75)); }
-.emblem-head { position:absolute;width:9px;height:9px;border-radius:50%;
-  background:#eaf4fb;box-shadow:0 0 16px 4px rgba(125,211,252,1);
+.emblem-deco { fill:none;stroke:rgba(125,211,252,.13);stroke-width:1;stroke-dasharray:2 11;
+  transform-box:fill-box;transform-origin:center;animation:decoSpin 26s linear infinite; }
+@keyframes decoSpin { to { transform:rotate(360deg); } }
+.emblem-head { position:absolute;width:8px;height:8px;border-radius:50%;
+  background:#eaf4fb;box-shadow:0 0 9px 2px rgba(125,211,252,.55),0 0 20px 6px rgba(125,211,252,.22);
   transform:translate(-50%,-50%);left:50%;top:7%;opacity:0; }
-.startup-pct { font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:5px;
+.startup-pct { display:flex;align-items:center;justify-content:center;gap:3px;
+  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;
   color:rgba(186,206,224,.55);margin-top:22px;opacity:0; }
+.startup-pct .pct-sign { letter-spacing:0; }
 /* ── 标题：英文品牌名（Clash Display 高级展示字体 + 逐字弹出）── */
 .startup-title { display:flex;align-items:center;gap:.02em;margin-right:-.02em;margin-left:.14em;
   font-family:'Clash Display','Sora','Space Grotesk','Inter',sans-serif;
@@ -141,6 +146,7 @@
     <div class="hero">
       <div class="startup-emblem">
         <svg class="emblem-svg" viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="emblem-deco" cx="100" cy="100" r="98"/>
           <circle class="emblem-track" cx="100" cy="100" r="86"/>
           <circle class="emblem-draw"  cx="100" cy="100" r="86"/>
         </svg>
@@ -152,7 +158,7 @@
         <span>E</span><span>Y</span><span>E</span>
       </div>
       <div class="startup-cap">太空遥测仪表盘 · SPACE TELEMETRY</div>
-      <div class="startup-pct"><span id="startup-pct">0</span>%</div>
+      <div class="startup-pct"><span id="startup-pct">0</span><span class="pct-sign">%</span></div>
       <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
     </div>
   </div>

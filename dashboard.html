@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>轨道之眼 OrbitEye · 太空遥测仪表盘</title>
+<title>OrbitEye · 太空遥测仪表盘</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&family=Space+Grotesk:wght@300;400;500;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
@@ -46,24 +46,24 @@
 .orbit-planet { position:absolute;top:14px;left:50%;width:6px;height:6px;border-radius:50%;
   transform:translate(-50%,-50%);background:#eaf4fb;box-shadow:0 0 14px 3px rgba(125,211,252,.9); }
 @keyframes orbitSpin { to { transform:rotate(360deg); } }
-/* ── 标题：高级感中文（Noto Sans SC 细体 + 舒展留白）── */
-.startup-title { display:flex;gap:.14em;margin-right:-.14em;
-  font-family:'Noto Sans SC','Microsoft YaHei',sans-serif;
-  font-size:clamp(42px,7vw,62px);font-weight:300;letter-spacing:.34em;
+/* ── 标题：英文品牌名（Space Grotesk 高级几何无衬线 + 逐字弹出）── */
+.startup-title { display:flex;align-items:center;gap:.04em;margin-right:-.04em;margin-left:.16em;
+  font-family:'Space Grotesk','Inter',sans-serif;
+  font-size:clamp(48px,8vw,72px);font-weight:500;letter-spacing:.16em;
   color:#f4f7fa;will-change:transform,opacity;
-  text-shadow:0 2px 28px rgba(125,211,252,.18); }
+  text-shadow:0 2px 30px rgba(125,211,252,.22); }
 .startup-title span { display:inline-block;opacity:0; }
-/* ── 拉丁字标：Space Grotesk 高级几何无衬线 ── */
-.startup-wordmark { font-family:'Space Grotesk',sans-serif;font-weight:400;
-  font-size:clamp(11px,1.6vw,14px);letter-spacing:.62em;margin-right:-.62em;
-  margin-top:24px;color:rgba(176,196,214,.6);opacity:0; }
+.startup-space { width:.34em;height:1px; }
+/* ── 副标题（控制台风）── */
 .startup-cap { font-family:'Share Tech Mono',monospace;font-size:10px;
-  letter-spacing:5px;color:rgba(190,205,220,.4);margin-top:14px;opacity:0; }
-/* ── 底部极简进度光带 ── */
-.startup-progress { width:220px;height:1px;background:rgba(125,211,252,.12);
-  margin-top:32px;overflow:hidden;opacity:0; }
+  letter-spacing:5px;color:rgba(190,205,220,.45);margin-top:18px;opacity:0; }
+/* ── 加载条 ── */
+.startup-progress { width:240px;height:2px;background:rgba(125,211,252,.14);
+  border-radius:2px;margin-top:34px;overflow:hidden;opacity:0; }
 .startup-progress-fill { width:0%;height:100%;background:linear-gradient(90deg,#38bdf8,#7dd3fc);
-  box-shadow:0 0 12px rgba(56,189,248,.7);transition:width .35s cubic-bezier(.4,0,.2,1); }
+  box-shadow:0 0 14px rgba(56,189,248,.8);transition:width .35s cubic-bezier(.4,0,.2,1); }
+.startup-progress-pct { font-family:'Space Grotesk',sans-serif;font-weight:400;
+  font-size:11px;letter-spacing:3px;color:rgba(176,196,214,.7);margin-top:12px;opacity:0; }
 /* ── 状态小字（控制台风）── */
 .startup-status { font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,.34);
   letter-spacing:2px;margin-top:28px;display:flex;align-items:center;gap:8px;opacity:0; }
@@ -151,10 +151,14 @@
         </svg>
         <div class="orbit-spin"><span class="orbit-planet"></span></div>
       </div>
-      <div class="startup-title"><span>轨</span><span>道</span><span>之</span><span>眼</span></div>
-      <div class="startup-wordmark">O R B I T E Y E</div>
-      <div class="startup-cap">SPACE TELEMETRY · 太空遥测仪表盘</div>
+      <div class="startup-title">
+        <span>O</span><span>R</span><span>B</span><span>I</span><span>T</span>
+        <span class="startup-space"></span>
+        <span>E</span><span>Y</span><span>E</span>
+      </div>
+      <div class="startup-cap">太空遥测仪表盘 · SPACE TELEMETRY</div>
       <div class="startup-progress"><div class="startup-progress-fill"></div></div>
+      <div class="startup-progress-pct"><span id="startup-pct">0</span>%</div>
       <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
     </div>
   </div>
@@ -162,7 +166,7 @@
 
 <button id="guide-toggle" onclick="toggleGuide()">?</button>
 <div id="guide-panel">
-  <h4>📖 操作教程 — 轨道之眼 OrbitEye</h4>
+  <h4>📖 操作教程 — OrbitEye</h4>
   <div class="section">⌨️ 页面导航</div>
   <div class="item"><span class="key"><span class="tag key">1 / 2</span></span><span class="desc">切换到遥测 / 太阳系页面</span></div>
   <div class="item"><span class="key"><span class="tag key">Ctrl + R</span></span><span class="desc">强制刷新全部遥测数据</span></div>
@@ -195,7 +199,7 @@
       <div style="display:flex;align-items:center;gap:10px;">
         <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity=".6"/><circle cx="14" cy="14" r="4" fill="var(--primary)" opacity=".8"/></svg>
         <div>
-          <div style="font-family:var(--title);font-size:13px;letter-spacing:5px;color:#fff;text-shadow:0 0 16px rgba(56,189,248,.3);">轨道之眼 · OrbitEye</div>
+          <div style="font-family:var(--title);font-size:13px;letter-spacing:5px;color:#fff;text-shadow:0 0 16px rgba(56,189,248,.3);">OrbitEye</div>
           <div style="font-size:9px;color:var(--dim);letter-spacing:3px;">太空遥测仪表盘 v1.0</div>
         </div>
       </div>

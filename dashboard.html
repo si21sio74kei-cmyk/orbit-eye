@@ -31,9 +31,6 @@
 #loading-overlay { animation:startupFailsafe .01s linear 7s forwards; }
 @keyframes startupFailsafe { to { opacity:0; visibility:hidden; pointer-events:none; } }
 #startup-canvas { position:absolute;inset:0;z-index:0;opacity:.5; }
-#startup-glow { position:absolute;width:480px;height:480px;z-index:1;pointer-events:none;left:50%;top:50%;
-  border-radius:50%;background:radial-gradient(circle,rgba(125,211,252,.1),transparent 62%);
-  transform:translate(-50%,-50%);transition:left .6s ease,top .6s ease;mix-blend-mode:screen; }
 #startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center; }
 .hero { display:flex;flex-direction:column;align-items:center;justify-content:center;will-change:transform; }
 /* ── 中央徽标：真实进度环 + 发光领头点 + 圆心百分比 ── */
@@ -141,7 +138,6 @@
 
 <div id="loading-overlay">
   <canvas id="startup-canvas"></canvas>
-  <div id="startup-glow"></div>
   <div id="startup-content">
     <div class="hero">
       <div class="startup-emblem">

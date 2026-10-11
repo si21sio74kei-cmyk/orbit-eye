@@ -329,10 +329,8 @@ if(window.anime){
 }else{
   document.querySelectorAll('.startup-emblem,.emblem-head,.startup-pct,.startup-title span,.startup-cap,.startup-status').forEach(s=>s.style.opacity=1);
 }
-// ── 鼠标互动：柔光跟随 + hero 轻微视差 ──
-const startupGlow=document.getElementById('startup-glow');
+// ── 鼠标互动：hero 轻微视差（轻量 transform，不触发混合层重绘）──
 window.addEventListener('mousemove',e=>{
-  if(startupGlow){startupGlow.style.left=e.clientX+'px';startupGlow.style.top=e.clientY+'px';}
   if(window.anime){const dx=(e.clientX/innerWidth-.5),dy=(e.clientY/innerHeight-.5);
     anime({targets:'.hero',translateX:dx*22,translateY:dy*16,duration:800,easing:'easeOutQuad'});}
 });

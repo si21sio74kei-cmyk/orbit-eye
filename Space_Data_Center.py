@@ -11,8 +11,14 @@ import requests, math, time, json, os
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
-app = Flask(__name__)
-CORS(app)
+# static_folder=None：关闭 Flask 默认的 /static 路由，避免与下方自定义的
+# /static/<path:filename> 路由冲突（两者规则相同，默认路由会抢占并指向已废弃的旧目录）。
+app = Flask(__name__, static_folder=None)
+# CORS：默认不放行任何跨站来源（同源访问无需 CORS 头，浏览器不会拦截）。
+# 确需跨域时通过环境变量 CORS_ORIGINS 显式配置，逗号分隔，例如:
+#   CORS_ORIGINS=https://example.com,https://another.com
+_cors_origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
+CORS(app, origins=_cors_origins)
 
 # ── Vercel rewrite 路径还原中间件 ──
 # Vercel 把所有请求 rewrite 到 /api/index 时，函数收到的 PATH_INFO 是改写目标
@@ -41,7 +47,8 @@ def _build_marker(resp):
     return resp
 
 BASE_DIR = Path(__file__).parent
-STATIC_DIR = BASE_DIR / "static"
+WEB_DIR    = BASE_DIR / "web"                    # 前端页面与静态资源
+STATIC_DIR = WEB_DIR / "static"                  # /static/<path> 路由的物理目录
 SAT_CACHE_FILE = BASE_DIR / ".satellite_cache.json"  # 持久缓存，避免限流时无数据
 
 # ── 配置（从环境变量 / .env 读取，避免硬编码密钥） ──────────────
@@ -64,7 +71,8 @@ def env(key, default):
     return os.environ.get(key, default)
 
 NASA_KEY      = env("NASA_API_KEY", "DEMO_KEY")
-SOLAR_SYS_KEY = env("SOLAR_SYSTEM_API_KEY", "56f9bdf9-e7cc-4f25-b1bf-7b16735edfd0")
+# 不再在源码中硬编码第三方 API key；未配置时留空，端点已有本地兜底数据。
+SOLAR_SYS_KEY = env("SOLAR_SYSTEM_API_KEY", "")
 SOLAR_API_URL = env("SOLAR_SYSTEM_API_URL", "https://api.le-systeme-solaire.net/rest/bodies/")
 PORT          = int(env("PORT", "5500"))
 MACAO_LAT     = float(env("MACAO_LAT", "22.1989"))
@@ -169,7 +177,7 @@ def moon_phase():
 
 @app.route('/')
 def index():
-    return send_file(str(BASE_DIR / "dashboard.html"))
+    return send_file(str(WEB_DIR / "dashboard.html"))
 
 # Vercel 入口：rewrite 把所有请求以 ?__path=原始路径 转到本函数。
 # 不依赖环境变量（Vercel 新版 CLI 对后端框架的路径语义会变），按查询参数确定性分发
@@ -197,7 +205,7 @@ def api_entry():
 
 @app.route('/solar')
 def solar():
-    return send_file(str(BASE_DIR / "solar-system.html"))
+    return send_file(str(WEB_DIR / "solar-system.html"))
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
@@ -560,27 +568,29 @@ def api_health():
 # [Dashboard 聚合 — 并行拉取全部数据]
 @app.route('/api/space/dashboard')
 def api_dashboard():
+    # 直接调用各视图函数，不再通过 HTTP 自指 127.0.0.1:{PORT}。
+    # Vercel serverless 函数没有常驻监听端口，自指请求会全部超时拿空数据；
+    # 内部调用在任意环境可用，且省去一次网络往返。
     from concurrent.futures import ThreadPoolExecutor
-    results = {}
-    base_url = f"http://127.0.0.1:{PORT}"
-    def _fetcher(path):
+    def _call(endpoint, **params):
         try:
-            r = requests.get(f"{base_url}{path}", timeout=10,
-                           headers={"User-Agent": USER_AGENT})
-            return r.json() if r.status_code == 200 else {}
+            with app.test_request_context(query_string=params):
+                rv = app.view_functions[endpoint]()
+            return rv.get_json(silent=True) or {}
         except Exception:
             return {}
+    results = {}
     with ThreadPoolExecutor(max_workers=6) as pool:
         futures = {
-            "iss": pool.submit(_fetcher, "/api/space/iss"),
-            "spacex": pool.submit(_fetcher, "/api/space/spacex"),
-            "space_body": pool.submit(_fetcher, "/api/space/space-body?type=earth"),
-            "weather": pool.submit(_fetcher, "/api/space/weather"),
-            "solar_storm": pool.submit(_fetcher, "/api/space/solar-storm"),
-            "moon_phase": pool.submit(moon_phase),
+            "iss":         pool.submit(_call, 'api_iss'),
+            "spacex":      pool.submit(_call, 'api_spacex'),
+            "space_body":  pool.submit(_call, 'api_space_body', type="earth"),
+            "weather":     pool.submit(_call, 'api_weather'),
+            "solar_storm": pool.submit(_call, 'api_solar_storm'),
+            "moon_phase":  pool.submit(moon_phase),
         }
         for key, fut in futures.items():
-            try: results[key] = fut.result(timeout=10)
+            try: results[key] = fut.result(timeout=15)
             except Exception: results[key] = {"error": "timeout"}
     results["macao"] = {"lat": MACAO_LAT, "lon": MACAO_LON}
     results["timestamp"] = datetime.now(timezone.utc).isoformat()
@@ -1425,7 +1435,9 @@ def _format_planet_info(p, cn_name):
 
 @app.route('/api/space/planet-info')
 def api_planet_info():
-    planet = request.args.get("planet", "太阳")
+    planet = request.args.get("planet", "太阳").strip()
+    if not planet:  # 空参数（?planet=）回退到默认天体，避免匹配到空 englishName
+        planet = "太阳"
     global SOLAR_CACHE, SOLAR_FAIL
 
     # 近期已知 le-systeme 不可达 → 直接返回本地真实数据，避免每次请求卡 8~15 秒
@@ -1439,10 +1451,10 @@ def api_planet_info():
         now = time.time()
         # 缓存 1 小时（所有天体一次拉取）
         if not SOLAR_CACHE["data"] or now - SOLAR_CACHE["time"] > 3600:
-            resp = requests.get(SOLAR_API_URL,
-                timeout=10,
-                headers={"User-Agent": USER_AGENT,
-                         "Authorization": f"Bearer {SOLAR_SYS_KEY}"})
+            _hdrs = {"User-Agent": USER_AGENT}
+            if SOLAR_SYS_KEY:  # 仅在配置了 key 时才发送鉴权头
+                _hdrs["Authorization"] = f"Bearer {SOLAR_SYS_KEY}"
+            resp = requests.get(SOLAR_API_URL, timeout=10, headers=_hdrs)
             if resp.status_code == 200:
                 SOLAR_CACHE = {"data": resp.json(), "time": now}
             else:

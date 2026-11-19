@@ -121,20 +121,30 @@ The webcam feed appears in a small Picture-in-Picture overlay. Camera permission
 ```
 project/
   Space_Data_Center.py   Main Flask server (reads keys from .env)
-  dashboard.html         Multi-page frontend (2 pages, Three.js, MediaPipe)
-  solar-system.html      Gesture-controlled 3D solar system
+  api/
+    index.py             Vercel serverless entry (imports Flask app)
+  web/                   All frontend pages + assets
+    dashboard.html       Multi-page frontend (2 pages, Three.js, MediaPipe)
+    solar-system.html    Gesture-controlled 3D solar system
+    static/
+      css/
+        datav.css        Dashboard + startup screen styles
+        solar.css        Solar system page styles
+      js/
+        dashboard.js     Dashboard core application logic
+        solar.js         Solar system 3D + gesture code
+        planet_shaders.js  GLSL procedural planet shaders (9 planets)
+      textures/          Planet texture maps (14 files)
+  docs/
+    制作手记.md           Dev notes (first-person, Chinese)
   requirements.txt       Python dependencies (3 packages)
+  vercel.json            Vercel deploy config (catch-all rewrite -> api/index)
   README.md              This documentation
-  static/
-    css/
-      datav.css          Dashboard + startup screen styles
-      solar.css          Solar system page styles
-    js/
-      dashboard.js       Dashboard core application logic
-      solar.js           Solar system 3D + gesture code
-      planet_shaders.js  GLSL procedural planet shaders (9 planets)
-    textures/             Planet texture maps (14 files)
 ```
+
+> Frontend URLs (e.g. `/static/css/datav.css`, `/solar`) are unchanged — the Flask
+> `/static/<path>` route maps them to `web/static/`. Moving files into `web/` does
+> not affect the deployed URLs or the Vercel gateway.
 
 ---
 

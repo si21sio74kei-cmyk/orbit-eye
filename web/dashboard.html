@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OrbitEye · 太空遥测仪表盘</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&family=Space+Grotesk:wght@300;400;500;700&family=Sora:wght@400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%236cb6e8' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='8' fill='%236cb6e8'/%3E%3C/svg%3E">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -15,6 +16,12 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="/static/css/datav.css">
 <style>
+/* ── 仪表盘顶栏（克制、留白、单一焦点）── */
+.dash-header { background:rgba(12,18,28,.7);border:1px solid var(--border);border-radius:10px;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(14px); }
+.dash-brand { font-family:var(--display);font-size:15px;letter-spacing:4px;color:#fff;font-weight:600; }
+.dash-sub { font-size:9px;color:var(--dim);letter-spacing:2px;margin-top:2px; }
+.head-divider { width:1px;height:20px;background:rgba(150,180,210,.12);display:inline-block; }
+
 /* ═══════════════════════════════════════════════════
    STARTUP SCREEN — animejs.com 风格：极简高级 + 自描线条 + 弹性
    ═══════════════════════════════════════════════════ */
@@ -52,7 +59,7 @@
 .startup-pct .pct-sign { letter-spacing:0; }
 /* ── 标题：英文品牌名（Clash Display 高级展示字体 + 逐字弹出）── */
 .startup-title { display:flex;align-items:center;gap:.02em;margin-right:-.02em;margin-left:.14em;
-  font-family:'Clash Display','Sora','Space Grotesk','Inter',sans-serif;
+  font-family:'Clash Display','Space Grotesk','Inter',sans-serif;
   font-size:clamp(46px,7.5vw,68px);font-weight:600;letter-spacing:.12em;
   color:#f4f7fa;will-change:transform,opacity;
   text-shadow:0 2px 30px rgba(125,211,252,.22); }
@@ -76,12 +83,12 @@
 #guide-toggle.on{background:rgba(56,189,248,.12);border-color:#38bdf8;}
 #guide-panel{position:fixed;top:48px;right:12px;z-index:94;width:290px;max-height:75vh;overflow-y:auto;background:rgba(2,10,28,.97);border:1px solid rgba(56,189,248,.1);border-radius:6px;padding:16px;font-size:10px;line-height:1.8;backdrop-filter:blur(16px);display:none;box-shadow:0 8px 48px rgba(0,0,0,.7);font-family:'Inter','Microsoft YaHei',sans-serif;}
 #guide-panel.show{display:block;animation:fadeIn .25s ease;}
-#guide-panel h4{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;color:#38bdf8;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid rgba(56,189,248,.1);}
+#guide-panel h4{font-family:'Space Grotesk',sans-serif;font-size:11px;letter-spacing:1px;color:var(--accent);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
 #guide-panel .section{color:rgba(56,189,248,.7);font-size:9px;letter-spacing:1px;margin-top:10px;margin-bottom:4px;font-weight:600;}
 #guide-panel .item{color:#9ca3af;font-size:9px;padding:2px 0;display:flex;gap:6px;}
-#guide-panel .item .key{color:#38bdf8;min-width:80px;font-family:'Share Tech Mono',monospace;font-size:8px;}
+#guide-panel .item .key{color:#38bdf8;min-width:80px;font-family:'Share Tech Mono',monospace;font-size:10px;}
 #guide-panel .item .desc{flex:1;}
-#guide-panel .tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:7px;margin-right:3px;letter-spacing:1px;}
+#guide-panel .tag{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;margin-right:3px;letter-spacing:1px;}
 #guide-panel .tag.gesture{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:#38bdf8;}
 #guide-panel .tag.mouse{background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.25);color:#34d399;}
 #guide-panel .tag.key{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:#fbbf24;}
@@ -99,9 +106,9 @@
 #pg-1 .pnl:hover { border-color:rgba(251,191,36,.4) !important; }
 .launch-card { width:540px; text-align:center; padding:52px 44px; }
 .launch-card .title {
-  font-family:'Orbitron',sans-serif; font-size:52px; letter-spacing:18px;
-  color:#fbbf24; font-weight:900;
-  text-shadow:0 0 30px rgba(251,146,30,.55),0 0 80px rgba(251,146,30,.22),0 0 140px rgba(251,146,30,.08);
+  font-family:'Space Grotesk',sans-serif; font-size:44px; letter-spacing:10px;
+  color:#fbbf24; font-weight:700;
+  text-shadow:0 0 30px rgba(251,146,30,.35),0 0 80px rgba(251,146,30,.14);
   animation:solarTitlePulse 3s ease-in-out infinite;
 }
 @keyframes solarTitlePulse {
@@ -116,7 +123,7 @@
 }
 .launch-card .desc { font-size:13px; color:#d4a574; line-height:2.2; margin-bottom:28px; font-weight:300; }
 .launch-card .launch-btn {
-  display:inline-block; padding:14px 40px; font-family:'Orbitron',sans-serif; font-size:14px; letter-spacing:5px;
+  display:inline-block; padding:14px 40px; font-family:'Space Grotesk',sans-serif; font-size:14px; letter-spacing:4px;
   color:#fbbf24; text-decoration:none; border:2px solid rgba(251,191,36,.45);
   background:rgba(251,191,36,.08); border-radius:6px; transition:all .35s ease; text-transform:uppercase;
 }
@@ -124,7 +131,7 @@
   background:rgba(251,191,36,.18); border-color:rgba(251,191,36,.75);
   box-shadow:0 0 48px rgba(251,146,30,.4),0 0 96px rgba(251,146,30,.1); transform:scale(1.04);
 }
-.launch-card .hint { font-size:8px; color:rgba(251,191,36,.3); font-family:'Share Tech Mono',monospace; letter-spacing:2px; margin-top:18px; }
+.launch-card .hint { font-size:10px; color:rgba(251,191,36,.3); font-family:'Share Tech Mono',monospace; letter-spacing:2px; margin-top:18px; }
 
 
 /* Toast notification */
@@ -191,31 +198,30 @@
 <!-- ═══════════ PAGE 0: TELEMETRY ═══════════ -->
 <div class="pg on" id="pg-0">
   <div style="padding:6px 8px 0 8px;">
-    <header style="background:rgba(3,14,33,.98);border:1px solid var(--border);border-radius:var(--radius);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(16px);">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <svg width="28" height="28" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity=".6"/><circle cx="14" cy="14" r="4" fill="var(--primary)" opacity=".8"/></svg>
+    <header class="dash-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <svg width="30" height="30" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="var(--primary)" stroke-width="1.4" opacity=".7"/><circle cx="14" cy="14" r="4" fill="var(--primary)" opacity=".9"/></svg>
         <div>
-          <div style="font-family:var(--title);font-size:13px;letter-spacing:5px;color:#fff;text-shadow:0 0 16px rgba(56,189,248,.3);">OrbitEye</div>
-          <div style="font-size:9px;color:var(--dim);letter-spacing:3px;">太空遥测仪表盘 v1.0</div>
+          <div class="dash-brand">OrbitEye</div>
+          <div class="dash-sub">太空遥测仪表盘 · v1.0</div>
         </div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div id="clk" style="font-family:var(--mono);font-size:12px;color:#fff;letter-spacing:1px;"></div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div id="clk" style="font-family:var(--mono);font-size:12px;color:#fff;letter-spacing:1px;font-variant-numeric:tabular-nums;"></div>
         <span style="font-size:9px;color:var(--dim);">HKT</span>
-        <div style="width:1px;height:24px;background:rgba(56,189,248,.1);"></div>
-        <span style="width:8px;height:8px;background:var(--good);border-radius:50%;display:inline-block;box-shadow:0 0 8px var(--good);"></span>
-        <span style="font-family:var(--mono);font-size:8px;color:var(--good);letter-spacing:2px;">SYS NOMINAL</span>
-        <div style="width:1px;height:24px;background:rgba(56,189,248,.1);"></div>
-        <button onclick="refreshAll()" class="btn text-[8px]" style="padding:4px 10px;">REFRESH</button>
+        <span class="head-divider"></span>
+        <span style="width:7px;height:7px;background:var(--good);border-radius:50%;display:inline-block;"></span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--good);letter-spacing:2px;">SYS NOMINAL</span>
+        <button onclick="refreshAll()" class="btn" style="padding:6px 13px;">REFRESH</button>
       </div>
     </header>
-    <div class="section-divider"><span>📡 即时遥测数据 · REAL-TIME TELEMETRY</span></div>
+    <div class="section-divider"><span>即时遥测数据 · REAL-TIME TELEMETRY</span></div>
   </div>
 
   <div class="dashboard-grid">
     <!-- 1. 3D地球追踪 globe -->
     <div class="pnl corner globe-cell overflow-hidden border-wave">
-      <div class="pt"><span>🌍 地球 3D 遥测追踪</span><span class="text-[8px] text-sky-400 border border-sky-700/40 px-1.5 py-0.5 bg-sky-950/20 font-mono tracking-wider rounded">ISS Now</span></div>
+      <div class="pt"><span>地球 3D 遥测追踪</span><span class="src-tag">ISS Now</span></div>
       <div style="height:calc(100% - 34px);position:relative;"><div id="globe-ct" style="width:100%;height:100%;"></div>
         <div style="position:absolute;bottom:6px;left:6px;right:6px;background:rgba(2,10,24,.9);padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:var(--mono);">
           <span class="d">ISS坐标:</span><span id="gl-pos" class="text-white font-bold">--</span>
@@ -225,7 +231,7 @@
     </div>
     <!-- 2. 国际空间站 ISS -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="iss-panel">
-      <div class="pt"><span>🛰 国际空间站 ISS 轨道</span><span id="iss-tag" class="text-[8px] text-sky-400 border border-sky-700/40 px-1.5 py-0.5 bg-sky-950/20 font-mono tracking-wider rounded">实时</span></div>
+      <div class="pt"><span>国际空间站 ISS 轨道</span><span id="iss-tag" class="src-tag">实时</span></div>
       <div class="p-3"><div id="iss-loading" class="shimmer text-[10px] d py-2">接收 ISS 遥测数据...</div>
       <div id="iss-content" class="hidden space-y-2">
         <div class="bg-black/40 p-2.5 border border-[var(--border)] space-y-1 text-[11px] rounded">
@@ -246,7 +252,7 @@
     </div>
     <!-- 3. 航天发射（合并：SpaceX最新 + 即将发射） -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="launch-panel">
-      <div class="pt"><span>🚀 航天发射任务</span><span class="text-[8px] text-purple-400 border border-purple-700/40 px-1.5 py-0.5 bg-purple-950/20 font-mono tracking-wider rounded">SpaceDevs</span></div>
+      <div class="pt"><span>航天发射任务</span><span class="src-tag">SpaceDevs</span></div>
       <div class="p-3"><div id="launch-loading" class="shimmer text-[10px] d py-2">获取发射数据...</div>
       <div id="launch-content" class="hidden space-y-2">
         <div class="bg-black/40 p-2.5 border border-[var(--border)] rounded">
@@ -263,7 +269,7 @@
     </div>
     <!-- 4. 天体影像 Space-Body -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="space-panel">
-      <div class="pt"><span>🔭 深空天体影像</span><select id="planet-select" class="sel text-[9px]"><option value="earth">🌍 地球</option><option value="mars">🔴 火星</option><option value="moon">🌙 月球</option></select><span class="text-[8px] text-purple-400 border border-purple-700/40 px-1.5 py-0.5 bg-purple-950/20 font-mono tracking-wider rounded">NASA EPIC</span></div>
+      <div class="pt"><span>深空天体影像</span><select id="planet-select" class="sel text-[9px]"><option value="earth">🌍 地球</option><option value="mars">🔴 火星</option><option value="moon">🌙 月球</option></select><span class="src-tag">NASA EPIC</span></div>
       <div class="p-3"><div id="space-loading" class="shimmer text-[10px] d py-2">下载天体影像...</div>
       <div id="space-content" class="hidden space-y-2">
         <div class="overflow-hidden border border-[var(--border)] bg-black relative rounded" style="min-height:155px;">
@@ -276,7 +282,7 @@
     </div>
     <!-- 5. 地面环境 Weather -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="weather-panel">
-      <div class="pt"><span>🌡 地面大气环境</span><select id="city-select" class="sel text-[9px]"><optgroup label="🇨🇳 大中华"><option value="澳门">🇲🇴 澳门</option><option value="香港">🇭🇰 香港</option><option value="台北">🇹🇼 台北</option><option value="广州">广州</option><option value="深圳">深圳</option><option value="北京">北京</option><option value="上海">上海</option><option value="成都">成都</option><option value="拉萨">拉萨</option><option value="乌鲁木齐">乌鲁木齐</option></optgroup><optgroup label="🌏 亚洲"><option value="东京">🇯🇵 东京</option><option value="首尔">🇰🇷 首尔</option><option value="新加坡">🇸🇬 新加坡</option><option value="曼谷">🇹🇭 曼谷</option><option value="迪拜">🇦🇪 迪拜</option><option value="新德里">🇮🇳 新德里</option></optgroup><optgroup label="🇪🇺 欧洲"><option value="伦敦">🇬🇧 伦敦</option><option value="巴黎">🇫🇷 巴黎</option><option value="柏林">🇩🇪 柏林</option><option value="莫斯科">🇷🇺 莫斯科</option></optgroup><optgroup label="🌎 美洲"><option value="纽约">🇺🇸 纽约</option><option value="洛杉矶">🇺🇸 洛杉矶</option><option value="多伦多">🇨🇦 多伦多</option><option value="圣保罗">🇧🇷 圣保罗</option></optgroup><optgroup label="🌏 大洋洲 · 非洲"><option value="悉尼">🇦🇺 悉尼</option><option value="开普敦">🇿🇦 开普敦</option></optgroup></select><span class="text-[8px] text-green-400 border border-green-700/40 px-1.5 py-0.5 bg-green-950/20 font-mono tracking-wider rounded">Open-Meteo</span></div>
+      <div class="pt"><span>地面大气环境</span><select id="city-select" class="sel text-[9px]"><optgroup label="🇨🇳 大中华"><option value="澳门">🇲🇴 澳门</option><option value="香港">🇭🇰 香港</option><option value="台北">🇹🇼 台北</option><option value="广州">广州</option><option value="深圳">深圳</option><option value="北京">北京</option><option value="上海">上海</option><option value="成都">成都</option><option value="拉萨">拉萨</option><option value="乌鲁木齐">乌鲁木齐</option></optgroup><optgroup label="🌏 亚洲"><option value="东京">🇯🇵 东京</option><option value="首尔">🇰🇷 首尔</option><option value="新加坡">🇸🇬 新加坡</option><option value="曼谷">🇹🇭 曼谷</option><option value="迪拜">🇦🇪 迪拜</option><option value="新德里">🇮🇳 新德里</option></optgroup><optgroup label="🇪🇺 欧洲"><option value="伦敦">🇬🇧 伦敦</option><option value="巴黎">🇫🇷 巴黎</option><option value="柏林">🇩🇪 柏林</option><option value="莫斯科">🇷🇺 莫斯科</option></optgroup><optgroup label="🌎 美洲"><option value="纽约">🇺🇸 纽约</option><option value="洛杉矶">🇺🇸 洛杉矶</option><option value="多伦多">🇨🇦 多伦多</option><option value="圣保罗">🇧🇷 圣保罗</option></optgroup><optgroup label="🌏 大洋洲 · 非洲"><option value="悉尼">🇦🇺 悉尼</option><option value="开普敦">🇿🇦 开普敦</option></optgroup></select><span class="src-tag">Open-Meteo</span></div>
       <div class="p-3"><div id="weather-loading" class="shimmer text-[10px] d py-2">读取大气数据...</div>
       <div id="weather-content" class="hidden space-y-3">
         <div class="grid grid-cols-2 gap-2">
@@ -292,7 +298,7 @@
     </div>
     <!-- 6. 太空威胁（合并：太阳风暴 + 近地小行星） -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="threat-panel">
-      <div class="pt"><span>☢️ 太空威胁监测</span><span class="text-[8px] text-orange-400 border border-orange-700/40 px-1.5 py-0.5 bg-orange-950/20 font-mono tracking-wider rounded">NOAA · NASA</span></div>
+      <div class="pt"><span>太空威胁监测</span><span class="src-tag">NOAA · NASA</span></div>
       <div class="p-3"><div id="threat-loading" class="shimmer text-[10px] d py-2">扫描太空威胁...</div>
       <div id="threat-content" class="hidden space-y-2">
         <div class="bg-black/40 p-2 border border-[var(--border)] rounded text-[11px]">
@@ -307,12 +313,12 @@
     </div>
   </div>
 
-  <div class="section-divider" style="margin:16px 8px 0 8px;"><span>🪐 深空探索与天文 · DEEP SPACE &amp; ASTRONOMY</span></div>
+  <div class="section-divider" style="margin:16px 8px 0 8px;"><span>深空探索与天文 · DEEP SPACE &amp; ASTRONOMY</span></div>
 
   <div class="dashboard-grid">
     <!-- 7. APOD 每日天文图 -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="apod-panel">
-      <div class="pt"><span>🖼 NASA 每日天文图</span><span class="text-[8px] text-purple-400 border border-purple-700/40 px-1.5 py-0.5 bg-purple-950/20 font-mono tracking-wider rounded">APOD</span></div>
+      <div class="pt"><span>NASA 每日天文图</span><span class="src-tag">APOD</span></div>
       <div class="p-3"><div id="apod-loading" class="shimmer text-[10px] d py-2">接收 NASA APOD...</div>
       <div id="apod-content" class="hidden space-y-2">
         <div class="overflow-hidden border border-[var(--border)] bg-black rounded" style="max-height:200px;">
@@ -324,25 +330,25 @@
     </div>
     <!-- 8. 火星天气 -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="mars-weather-panel">
-      <div class="pt"><span>🔴 火星地表天气</span><span class="text-[8px] text-red-400 border border-red-700/40 px-1.5 py-0.5 bg-red-950/20 font-mono tracking-wider rounded">Curiosity</span></div>
+      <div class="pt"><span>火星地表天气</span><span class="src-tag">Curiosity</span></div>
       <div class="p-3"><div id="mars-weather-loading" class="shimmer text-[10px] d py-2">接收火星遥测...</div>
       <div id="mars-weather-content" class="hidden space-y-2"><div id="mars-sol-list" class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]"></div></div></div>
     </div>
     <!-- 9. 航天新闻 -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="news-panel">
-      <div class="pt"><span>📰 全球航天新闻</span><span class="text-[8px] text-cyan-400 border border-cyan-700/40 px-1.5 py-0.5 bg-cyan-950/20 font-mono tracking-wider rounded">Spaceflight News</span></div>
+      <div class="pt"><span>全球航天新闻</span><span class="src-tag">Spaceflight News</span></div>
       <div class="p-3"><div id="news-loading" class="shimmer text-[10px] d py-2">获取最新头条...</div>
       <div id="news-content" class="hidden"><div class="space-y-2 max-h-[200px] overflow-y-auto" id="news-list"></div></div></div>
     </div>
     <!-- 10. 系外行星 -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="exo-panel">
-      <div class="pt"><span>🪐 系外行星档案</span><span class="text-[8px] text-indigo-400 border border-indigo-700/40 px-1.5 py-0.5 bg-indigo-950/20 font-mono tracking-wider rounded">NASA Archive</span></div>
+      <div class="pt"><span>系外行星档案</span><span class="src-tag">NASA Archive</span></div>
       <div class="p-3"><div id="exo-loading" class="shimmer text-[10px] d py-2">浏览系外行星档案...</div>
       <div id="exo-content" class="hidden"><div class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]" id="exo-list"></div></div></div>
     </div>
     <!-- 11. 天文观测（合并：观星预报 + 月相月历） -->
     <div class="pnl corner tilt lg:col-span-2 border-wave" id="obs-panel">
-      <div class="pt"><span>🌙 天文观测站</span><span id="obs-grade-badge" class="text-[8px] border px-1.5 py-0.5 font-mono tracking-wider rounded" style="color:var(--good);border-color:rgba(52,211,153,.4);">--</span></div>
+      <div class="pt"><span>天文观测站</span><span id="obs-grade-badge" class="text-[8px] border px-1.5 py-0.5 font-mono tracking-wider rounded" style="color:var(--good);border-color:rgba(52,211,153,.4);">--</span></div>
       <div class="p-3"><div id="obs-loading" class="shimmer text-[10px] d py-2">分析观测条件...</div>
       <div id="obs-content" class="hidden space-y-2">
         <div class="grid grid-cols-2 gap-2 text-[10px]">

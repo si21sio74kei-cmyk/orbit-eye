@@ -11,10 +11,19 @@
 // CORE — 参考 DeepSpace-Survival-Simulator 的可靠模式
 // ═══════════════════════════════════════════════════════════
 const API_URL = (location.protocol==='file:')?'http://127.0.0.1:5500/api/space':'/api/space';
-function escapeHTML(str) {
+// 转义所有外部 API 数据后再拼进 innerHTML，避免存储型 XSS
+function escapeHTML(v) {
+  if (v === null || v === undefined) return '';
   const div = document.createElement('div');
-  div.textContent = str;
+  div.textContent = String(v);
   return div.innerHTML;
+}
+// 外链只允许 http/https，拦截 javascript:/data: 等危险协议
+function safeUrl(u) {
+  try {
+    const url = new URL(String(u), location.href);
+    return (url.protocol === 'http:' || url.protocol === 'https:') ? url.href : '#';
+  } catch (e) { return '#'; }
 }
 function showError(id, msg) {
 const le = document.getElementById(id+'-loading');  if (le) { le.classList.remove('shimmer'); le.innerHTML = '<span class="r">X '+msg+'</span>'; }  
@@ -45,7 +54,7 @@ const mp = document.getElementById('mo-panel');      if (d.macao_link.alarm) {  
 document.getElementById('mo-link').style.cssText = 'color:#f87171;font-weight:bold';      } else {        mp.style.borderColor = 'rgba(56,189,248,.2)';        mp.style.background = 'rgba(56,189,248,.015)';
 document.getElementById('mo-link').style.cssText = 'color:#7dd3fc;font-weight:normal';      }    }    if (d.pass_predictions?.length) {      
 const n = d.pass_predictions[0];
-document.getElementById('iss-pass').innerHTML = 'NEXT PASS: <span class="w">'+n.start_in_minutes+' min</span> ('+n.duration_minutes+' min)';
+document.getElementById('iss-pass').innerHTML = 'NEXT PASS: <span class="w">'+escapeHTML(n.start_in_minutes)+' min</span> ('+escapeHTML(n.duration_minutes)+' min)';
 document.getElementById('iss-pass').classList.remove('hidden');    }    if (d._source==='demo') {      document.getElementById('demo-badge').style.display='block';
 document.getElementById('bt-demo').style.display='inline';    }    document.getElementById('iss-tag').textContent = d._source==='demo'?'演示':'实时';    updGlobe(parseFloat(d.iss_position.latitude),parseFloat(d.iss_position.longitude),d.macao_link?.distance_km||0);    showContent('iss');  } catch(e) {    
 const ce = document.getElementById('iss-content');    if (ce && ce.classList.contains('hidden')) showError('iss','TELEMETRY LOST');  }}
@@ -101,7 +110,7 @@ async function fetchThreats() {
     if (haz) { alert.innerHTML = "⚠ "+haz+"颗危险小行星"; alert.style.color="var(--danger)"; }
     else { alert.textContent = (d.count||0)+"颗近地天体, 全部安全"; alert.style.color="var(--dim)"; }
     (d.objects||[]).slice(0,6).forEach(o=>{
-      list.innerHTML+="<div class=\"flex justify-between items-center bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]\"><span class=\"text-white\">"+o.name+"</span><span class=\"text-gray-500\">"+o.diameter_km+"km</span><span class=\""+(o.hazardous?"text-red-400":"text-gray-400")+"\">"+o.miss_distance_lunar+"LD</span><span class=\"text-gray-600 text-[8px]\">"+o.approach_date+"</span></div>";
+      list.innerHTML+="<div class=\"flex justify-between items-center bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]\"><span class=\"text-white\">"+escapeHTML(o.name)+"</span><span class=\"text-gray-500\">"+escapeHTML(o.diameter_km)+"km</span><span class=\""+(o.hazardous?"text-red-400":"text-gray-400")+"\">"+escapeHTML(o.miss_distance_lunar)+"LD</span><span class=\"text-gray-600 text-[8px]\">"+escapeHTML(o.approach_date)+"</span></div>";
     });
     ok = true;
   } catch(e) {}
@@ -110,11 +119,11 @@ async function fetchThreats() {
 async function fetchMarsWeather() {  try {
 	const res = await fetch(API_URL+'/mars-weather');
 	const d = await res.json();
-	const list = document.getElementById('mars-sol-list');    list.innerHTML = '<div class="text-[10px] text-gray-500 mb-1">'+d.station+'</div>';    (d.sols||[]).forEach(s=>{      const windStr = (s.wind_mps != null) ? s.wind_mps+'m/s' : (s.atmo_opacity||'--');      list.innerHTML+=`<div class="flex justify-between bg-black/30 p-1.5 border border-[var(--border)] rounded">        <span class="text-red-400">Sol ${s.sol}</span><span class="text-white">${s.max_temp_c!=null?s.max_temp_c+'°C':'--'}</span><span class="text-blue-400">${s.min_temp_c!=null?s.min_temp_c+'°C':'--'}</span>        <span class="text-gray-500">${windStr}</span><span class="text-gray-600 text-[8px]">${s.season||'--'}</span></div>`;    });    showContent('mars-weather');  } catch(e) { showError('mars-weather','MARS LOST'); }}
+	const list = document.getElementById('mars-sol-list');    list.innerHTML = '<div class="text-[10px] text-gray-500 mb-1">'+escapeHTML(d.station)+'</div>';    (d.sols||[]).forEach(s=>{      const windStr = (s.wind_mps != null) ? escapeHTML(s.wind_mps)+'m/s' : (escapeHTML(s.atmo_opacity)||'--');      list.innerHTML+=`<div class="flex justify-between bg-black/30 p-1.5 border border-[var(--border)] rounded">        <span class="text-red-400">Sol ${escapeHTML(s.sol)}</span><span class="text-white">${s.max_temp_c!=null?escapeHTML(s.max_temp_c)+'°C':'--'}</span><span class="text-blue-400">${s.min_temp_c!=null?escapeHTML(s.min_temp_c)+'°C':'--'}</span>        <span class="text-gray-500">${windStr}</span><span class="text-gray-600 text-[8px]">${escapeHTML(s.season)||'--'}</span></div>`;    });    showContent('mars-weather');  } catch(e) { showError('mars-weather','MARS LOST'); }}
 async function fetchNews() {  try {    
 const res = await fetch(API_URL+'/news');
 const d = await res.json();
-const list = document.getElementById('news-list');    list.innerHTML = '';    (d.articles||[]).slice(0,6).forEach(a=>{      list.innerHTML+=`<a href="${a.url}" target="_blank" class="block bg-black/30 p-2 border border-[var(--border)] rounded hover:bg-black/50 transition">        <div class="text-[11px] text-white leading-tight">${a.title}</div>        <div class="flex justify-between mt-1 text-[8px]"><span class="text-sky-400">${a.source}</span><span class="text-gray-500">${a.published}</span></div></a>`;    });    showContent('news');  } catch(e) { showError('news','NEWS LOST'); }}
+const list = document.getElementById('news-list');    list.innerHTML = '';    (d.articles||[]).slice(0,6).forEach(a=>{      list.innerHTML+=`<a href="${safeUrl(a.url)}" target="_blank" rel="noopener noreferrer" class="block bg-black/30 p-2 border border-[var(--border)] rounded hover:bg-black/50 transition">        <div class="text-[11px] text-white leading-tight">${escapeHTML(a.title)}</div>        <div class="flex justify-between mt-1 text-[8px]"><span class="text-sky-400">${escapeHTML(a.source)}</span><span class="text-gray-500">${escapeHTML(a.published)}</span></div></a>`;    });    showContent('news');  } catch(e) { showError('news','NEWS LOST'); }}
 // [合并] 航天发射: SpaceX最新 + 即将发射
 async function fetchLaunches() {
   const le = document.getElementById("launch-loading");
@@ -135,7 +144,7 @@ async function fetchLaunches() {
     const d = await r.json();
     const list = document.getElementById("launch-list"); list.innerHTML = "";
     (d.launches||[]).slice(0,6).forEach(l=>{
-      list.innerHTML+="<div class=\"bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]\"><div class=\"text-white font-bold\">"+l.name+"</div><div class=\"flex justify-between mt-0.5\"><span class=\"text-green-400\">"+l.rocket+"</span><span class=\"text-gray-500\">"+l.window_start+"</span></div></div>";
+      list.innerHTML+="<div class=\"bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]\"><div class=\"text-white font-bold\">"+escapeHTML(l.name)+"</div><div class=\"flex justify-between mt-0.5\"><span class=\"text-green-400\">"+escapeHTML(l.rocket)+"</span><span class=\"text-gray-500\">"+escapeHTML(l.window_start)+"</span></div></div>";
     });
     ok = true;
   } catch(e) {}
@@ -145,14 +154,14 @@ async function fetchExoplanets() {  try {
 const res = await fetch(API_URL+'/exoplanets');
 const d = await res.json();
 const list = document.getElementById('exo-list');    list.innerHTML = '';    (d.planets||[]).slice(0,8).forEach(p=>{      
-	list.innerHTML+=`<div class="flex justify-between items-center bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]"><span class="text-white">${p.name||'--'}</span><span class="text-gray-500">${p.distance_ly||'--'} ly</span><span class="text-indigo-400">${p.mass_earth||'--'} M⊕</span><span class="text-amber-400">${p.radius_earth||'--'} R⊕</span><span class="text-gray-600 text-[8px]">${p.orbit_days||'--'} d</span></div>`;    });    showContent('exo');  } catch(e) { showError('exo','EXO LOST'); }}
+	list.innerHTML+=`<div class="flex justify-between items-center bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]"><span class="text-white">${escapeHTML(p.name||'--')}</span><span class="text-gray-500">${escapeHTML(p.distance_ly||'--')} ly</span><span class="text-indigo-400">${escapeHTML(p.mass_earth||'--')} M⊕</span><span class="text-amber-400">${escapeHTML(p.radius_earth||'--')} R⊕</span><span class="text-gray-600 text-[8px]">${escapeHTML(p.orbit_days||'--')} d</span></div>`;    });    showContent('exo');  } catch(e) { showError('exo','EXO LOST'); }}
 async function fetchISSPassDetail() { try {
     const res = await fetch(API_URL+'/iss-pass-detail');
     const d = await res.json();
     document.getElementById('iss-pass-dist').innerText = d.current_distance_km+' km';
     const list = document.getElementById('iss-pass-list'); list.innerHTML = '';
     (d.next_passes||[]).forEach(p => {
-      list.innerHTML+=`<div class="flex justify-between items-center bg-black/30 p-1 border border-[var(--border)] rounded text-[9px]"><span class="text-sky-400">${p.start_time_hkt||''}</span><span class="text-white">${p.duration_minutes}min</span><span class="text-gray-500">${p.min_distance_km}km</span></div>`;
+      list.innerHTML+=`<div class="flex justify-between items-center bg-black/30 p-1 border border-[var(--border)] rounded text-[9px]"><span class="text-sky-400">${escapeHTML(p.start_time_hkt||'')}</span><span class="text-white">${escapeHTML(p.duration_minutes)}min</span><span class="text-gray-500">${escapeHTML(p.min_distance_km)}km</span></div>`;
     });
     document.getElementById('iss-pass-detail').classList.remove('hidden');
   } catch(e) { /* 静默降级 */ } }
@@ -182,7 +191,7 @@ async function fetchObserving() {
     const d = await r.json();
     const list = document.getElementById("mooncal-forecast"); list.innerHTML = "";
     (d.forecast||[]).forEach(e => {
-      list.innerHTML+="<div><span class=\"text-white\">"+e.date.slice(5)+"</span><br><span class=\"text-gray-400 text-[8px]\">"+e.phase+"</span><br><span class=\"text-gray-500 text-[8px]\">"+e.illumination+"%</span></div>";
+      list.innerHTML+="<div><span class=\"text-white\">"+escapeHTML((e.date||'').slice(5))+"</span><br><span class=\"text-gray-400 text-[8px]\">"+escapeHTML(e.phase)+"</span><br><span class=\"text-gray-500 text-[8px]\">"+escapeHTML(e.illumination)+"%</span></div>";
     });
     ok = true;
   } catch(e) {}

@@ -597,8 +597,13 @@ window._camTarget = new THREE.Vector3(0,0,0);
 // 现在改成「行星刚性居中 + 相对偏移平滑」：
 //   相机位置 = 行星位置 + 平滑后的偏移，行星永远钉在画面中心，只有镜头的相对位移被插值。
 // 同时方位角只按 2% 比例跟随公转角：既有侧舷伴飞的视差，又不会把整个星空甩起来。
-const _camOff = new THREE.Vector3(0, 12, 20);   // 相机相对行星的偏移
 const _lookOff = new THREE.Vector3();           // 视点残余偏移（换焦点时平滑收敛）
+// 相机相对行星的偏移改用「极坐标」保存：方位角 _offAz / 水平半径 _offR / 高度 _offY。
+// 旧写法把偏移存成 Vector3 逐分量线性插值，换焦点时方位角常反转 ~180°，
+// 两个反向向量做线性插值时中点恰好是零向量 → 相机瞬移到星球球心，
+// 投影矩阵退化，太阳的屏幕坐标会在 ±6 万像素间来回甩（就是肉眼看到的"太阳剧烈抖动"）。
+// 改极坐标后：方位走最短弧旋转、半径/高度各走标量插值，永远不经过零点。
+let _offAz = null, _offR = 0, _offY = 0;
 let _camAz = null, _camAzFocus = -1;
 function camAzimuth(i, now){
   const target = (i === 0) ? (now * 0.02) : (ssObjs[i].angle - 1.57);
@@ -610,10 +615,19 @@ function camAzimuth(i, now){
   return _camAz;
 }
 function followPlanet(tx, ty, tz, ox, oy, oz, k){
-  _camOff.x += (ox - _camOff.x) * k;
-  _camOff.y += (oy - _camOff.y) * k;
-  _camOff.z += (oz - _camOff.z) * k;
-  ssCam.position.set(tx + _camOff.x, ty + _camOff.y, tz + _camOff.z);
+  const wantR = Math.sqrt(ox * ox + oz * oz);
+  const wantAz = Math.atan2(oz, ox);
+  if (_offAz === null) { _offAz = wantAz; _offR = wantR; _offY = oy; }
+  else {
+    let da = wantAz - _offAz;
+    da = Math.atan2(Math.sin(da), Math.cos(da));   // 最短弧，避免绕过 ±π 时甩镜头
+    _offAz += da * k;
+    _offR += (wantR - _offR) * k;
+    _offY += (oy - _offY) * k;
+  }
+  // 半径下限：任何情况下相机都不能落到行星球心附近，否则投影退化
+  const r = Math.max(_offR, 0.35);
+  ssCam.position.set(tx + Math.cos(_offAz) * r, ty + _offY, tz + Math.sin(_offAz) * r);
   _lookOff.multiplyScalar(0.88);
   window._camTarget.set(tx + _lookOff.x, ty + _lookOff.y, tz + _lookOff.z);
   ssCam.lookAt(window._camTarget);
@@ -660,12 +674,19 @@ function focusPlanet(idx) {
   tZoom = planetZoomDist[P[idx].t] || 2.0;
   triggerAlert('🔭 ' + P[focus].n);
 
-  // 换焦点时保持镜头连续：把偏移/视点差值重算成「当前相机位置 − 新行星位置」，
-  // 之后偏移会自己收敛到跟随位，看上去是镜头飞过去，而不是瞬移或甩一下。
+  // 换焦点时保持镜头稳定：方位角【直接对齐】新行星的标准侧舷位，不做绕行。
+  // 之前是让方位角从旧方向慢慢转过去，可场景是压缩过的（木星轨道才 16.5、太阳半径 3.5），
+  // 镜头绕着新行星转的那段弧一定会从太阳旁边擦过 —— 太阳的投影会在 ±几万像素之间爆掉，
+  // 肉眼看到的就是"切星球时太阳剧烈抖动"。只有半径/高度继续做标量插值，观感是干净的推拉。
   const tp = ssObjs[idx] && ssObjs[idx].mesh ? ssObjs[idx].mesh.position : null;
   if (tp) {
-    _camOff.copy(ssCam.position).sub(tp);
-    if (_camOff.lengthSq() < 1e-3) _camOff.set(0, 6, 12);   // 防止退化导致朝向 NaN
+    const dx = ssCam.position.x - tp.x, dy = ssCam.position.y - tp.y, dz = ssCam.position.z - tp.z;
+    const cap = (P[idx].d || 30) * 0.58;        // 绕行半径上限：不得超过行星轨道半径的 58%
+    let rr = Math.sqrt(dx * dx + dz * dz);
+    if (!isFinite(rr) || rr < 0.6) rr = cap * 0.8;
+    _offAz = camAzimuth(idx, performance.now());  // 直接到位，不绕行
+    _offR = Math.min(rr, cap);
+    _offY = dy;
     _lookOff.copy(window._camTarget).sub(tp);
   }
   _camAzFocus = -1;   // 新焦点重新对齐方位角基准
@@ -731,6 +752,26 @@ function updateUI(){ document.getElementById('st-planet').textContent=P[focus].n
 //  绝不遮星球本体 / 时间流速滑条 / HUD；用真实 DOM 矩形做几何避让。
 //  不动相机、手势、任何 id。
 // ──────────────────────────────────────────────────────
+// 星球的「真实屏幕半径」：旧写法 (s/dist)*vh*0.5 漏掉了透视相机的 fov 分母，
+// 算出来的半径只有实际的一半左右 —— 卡片按一半半径避让，就会切进球体里近百像素，
+// 看起来就是"过度遮挡星球"。这里补上 tan(fov/2)，并按相机到球心的真实距离计算。
+function planetScreenR(dist){
+  const h = window.innerHeight * 0.5;
+  const tanHalf = Math.tan(ssCam.fov * 0.5 * Math.PI / 180) || 0.52;
+  return (P[focus].s / Math.max(dist, 0.15)) * h / tanHalf;
+}
+
+// 把聚焦星球投影成屏幕坐标 + 真实半径，交给 layoutCard
+function projectCard(tx, ty, tz){
+  if(!window._cardActive) return;
+  const wp = _tmpProj.set(tx, ty, tz).project(ssCam);
+  if(wp.z > 1){ layoutCard(null, null); return; }
+  const sx = (wp.x * 0.5 + 0.5) * window.innerWidth;
+  const sy = (-wp.y * 0.5 + 0.5) * window.innerHeight;
+  const dist = Math.sqrt((ssCam.position.x-tx)**2 + (ssCam.position.y-ty)**2 + (ssCam.position.z-tz)**2);
+  layoutCard(sx, sy, planetScreenR(dist));
+}
+
 function layoutCard(sx, sy, rPx){
   const card = document.getElementById('planet-card');
   if(!card || !window._cardActive) return;
@@ -768,28 +809,63 @@ function layoutCard(sx, sy, rPx){
       if(leftAvail >= 300){ card.style.width = leftAvail + 'px'; cw = leftAvail; ch = card.offsetHeight || ch; L = 10; }
     }
   } else {
-    // 星球左上候选：卡片右边缘压在星球中心偏左处，底缘抬到星球上缘之上 gap，
-    // 视觉上卡片"挂"在星球左肩；左缘不得压到左上角控制条，故用其右缘钳制。
+    // ── 桌面/平板：贴星球左上角 ──
+    // 关键几何：卡片是矩形、星球是圆。矩形不与圆相交 ⇔ 圆心到矩形最近点的距离 ≥ r。
+    // 卡片挂在星球左上时最近点就是它的「右下角」，所以只要
+    //   √((sx−right)² + (sy−bottom)²) ≥ r + 留白
+    // 就是数学上严格不遮球 —— 允许右下角"窝进"星球左上那片空角，这才是贴左上角的手感。
     const ctrlSafe = cr ? cr.right + gap : 10;
-    const ulL = Math.max(ctrlSafe, sx - rPx * 0.35 - cw);
-    const ulT = sy - rPx - ch - gap;
-    // 候选按 preference 排序：左上 → 正上方 → 正下方；取第一个同时避开 HUD/控制条/状态面板者。
-    const cands = [
-      [ulL, ulT],
-      [sx - cw / 2, ulT],
-      [sx - cw / 2, sy + rPx + gap]
-    ];
-    let placed = false;
-    for(const [cl, ct] of cands){
-      const inView = cl >= 10 && ct >= minTop && cl + cw <= vw - 10 && ct + ch <= vh - 10;
-      if(inView && !hitsCtrl(cl, ct) && !hitsStatus(cl, ct)){ L = cl; T = ct; placed = true; break; }
+    const m = 12;                       // 卡片与球面之间的最小留白
+    const rad = rPx + m;
+
+    function discOK(Lq, Tq){
+      const nx = Math.max(Lq, Math.min(sx, Lq + cw));
+      const ny = Math.max(Tq, Math.min(sy, Tq + ch));
+      return Math.hypot(sx - nx, sy - ny) >= rad - 0.5;   // 0.5px 容差，避免恰好相切被浮点误差判为相交
     }
-    if(!placed){
-      // 兜底：HUD 下方起步，依次避让控制条 / 状态面板
-      L = Math.max(10, sx - rPx - cw - gap);
-      T = minTop;
-      if(hitsCtrl(L,T)) T = cr.bottom + gap;
-      if(hitsStatus(L,T)) T = Math.max(T, sr.bottom + gap);
+    function fit(Lq, Tq){
+      return Lq >= 10 && Lq + cw <= vw - 10 && Tq >= minTop && Tq + ch <= vh - 10
+             && !hitsCtrl(Lq, Tq) && !hitsStatus(Lq, Tq) && discOK(Lq, Tq);
+    }
+    let done = false;
+
+    // ① 首选「贴左上角」：卡片右下角沿球面左上角切过去，底缘尽量落在球心上方
+    for(const floorK of [0.66, 0.4, 0]){
+      const Lq = Math.max(ctrlSafe, sx - rad * 0.72 - cw);
+      const dx = Math.max(sx - Math.min(Lq + cw, sx), 0);
+      const floor = rPx * floorK;
+      const need = dx >= rad ? Math.max(rPx + 6, floor)
+                             : Math.max(Math.sqrt(rad * rad - dx * dx), floor);
+      const Tq = sy - need - ch;
+      if(fit(Lq, Tq)){ L = Lq; T = Tq; done = true; break; }
+    }
+    // ② 次选「贴左侧」：整卡在球左边、顶边与球顶对齐（球很大时唯一还能"左上"的落点）
+    if(!done){
+      const Rq = Math.min(sx - rad - 2.5, vw - 10);
+      const Lq = Math.max(10, Math.min(Rq - cw, vw - cw - 10));
+      let Tq = Math.max(minTop, sy - rad);
+      if(cr && Lq < cr.right + gap) Tq = Math.max(Tq, cr.bottom + gap);
+      if(fit(Lq, Tq)){ L = Lq; T = Tq; done = true; }
+    }
+    // ③ 球正上方居中
+    if(!done){
+      const Lq = sx - cw / 2, Tq = sy - rad - gap - ch;
+      if(fit(Lq, Tq)){ L = Lq; T = Tq; done = true; }
+    }
+    // ④ 顶部左上：球体过大、四周都塞不下时，宁可让面板压住球体上缘一角，
+    //    也绝不让它盖住球心/下半球——保证"这颗星球"始终看得见。
+    if(!done){
+      const Lq = Math.max(10, Math.min(sx - cw * 0.55, vw - cw - 10));
+      const Tq = minTop;
+      const coversCenter = sx > Lq - 24 && sx < Lq + cw + 24 && sy > Tq && sy < Tq + ch + 24;
+      const inView = Lq + cw <= vw - 10 && Tq + ch <= vh - 10;
+      if(inView && !coversCenter){ L = Lq; T = Tq; done = true; }
+    }
+    // ⑤ 兜底：球下方
+    if(!done){
+      const Lq = Math.max(10, Math.min(sx - cw / 2, vw - cw - 10));
+      const Tq = Math.min(sy + rad + gap, vh - ch - 10);
+      L = Lq; T = Math.max(minTop, Tq);
     }
   }
 
@@ -802,6 +878,7 @@ function layoutCard(sx, sy, rPx){
   card.style.top  = T + 'px';
   window._cardRect = {left:L, top:T, right:L+cw, bottom:T+ch};
   window._cardPlanet = {cx:sx, cy:sy, r:rPx};
+  window._cardDbg = {sx:sx, sy:sy, rPx:rPx, cw:cw, ch:ch, narrow:narrow, minTop:minTop};
 }
 
 function showCard(){
@@ -1478,16 +1555,7 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
       Math.sin(camAngle) * lockDist, 0.06);
 
     // 卡片跟随：贴星球左上但不遮星球 / 不挡时间流速滑条（每帧几何避让）
-    if(window._cardActive){
-      const wp = _tmpProj.set(tx, ty, tz).project(ssCam);
-      if(wp.z > 1) layoutCard(null, null);
-      else {
-        const sx = (wp.x * 0.5 + 0.5) * window.innerWidth;
-        const sy = (-wp.y * 0.5 + 0.5) * window.innerHeight;
-        const rPx = (P[focus].s / (lockDist || 1)) * window.innerHeight * 0.5;
-        layoutCard(sx, sy, rPx);
-      }
-    }
+    projectCard(tx, ty, tz);
   } else {
     // 🌌 2. 手势控制模式
     const f = ssObjs[focus];
@@ -1503,16 +1571,7 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
         lockDist * 0.25,
         Math.sin(camAngle) * lockDist, 0.10);
 
-      if(window._cardActive){
-        const wp = _tmpProj.set(tx, ty, tz).project(ssCam);
-        if(wp.z > 1) layoutCard(null, null);
-        else {
-          const sx = (wp.x * 0.5 + 0.5) * window.innerWidth;
-          const sy = (-wp.y * 0.5 + 0.5) * window.innerHeight;
-          const rPx = (P[focus].s / (lockDist || 1)) * window.innerHeight * 0.5;
-          layoutCard(sx, sy, rPx);
-        }
-      }
+      projectCard(tx, ty, tz);
     } else {
       // 🔓 状态 B：手势松开（解除捏合）— 平滑退回宏观大视角
       ssRY += (tRY - ssRY) * 0.09; 
@@ -1521,10 +1580,16 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
       const pitchY = (focus === 0) ? ssZoom * 0.55 : ssZoom * 0.42;
       // 这里的 baseAngle 极为关键！退远时也保持侧向，保证倒车绝对安全
       const baseAngle = camAzimuth(focus, now) + ssRY;
+      // 同上：绕行半径不得超过轨道半径的 0.58，否则退远的过程中会扫过太阳
+      const rideR = Math.min(ssZoom, (P[focus].d || 30) * 0.58);
       followPlanet(tx, ty, tz,
-        Math.cos(baseAngle) * ssZoom,
+        Math.cos(baseAngle) * rideR,
         pitchY - ty,
-        Math.sin(baseAngle) * ssZoom, 0.06);
+        Math.sin(baseAngle) * rideR, 0.06);
+
+      // 之前这里没有更新卡片位置：手势松开后镜头继续退远/换焦点，
+      // 卡片却停在上一帧的位置不动 —— 表现为"某颗星球的面板跑到下面/乱飘"。
+      projectCard(tx, ty, tz);
     }
   }
   // 🌊 宇宙悬浮微动 — 风暴不再抖镜头，仅由红色日冕粒子表达异变（见上方日冕动画）

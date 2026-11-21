@@ -7,7 +7,7 @@ Usage: python Space_Data_Center.py  →  http://127.0.0.1:5500
 from flask import Flask, jsonify, request, Response, send_file, send_from_directory
 from werkzeug.exceptions import NotFound
 from flask_cors import CORS
-import requests, math, time, json, os
+import requests, math, time, json, os, re
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
@@ -26,6 +26,7 @@ CORS(app, origins=_cors_origins)
 # x-forwarded-path 头，以及 vercel.json destination 的 __path 查询参数。
 # 在请求分发前把 PATH_INFO 还原为真实路径。
 from urllib.parse import parse_qs as _parse_qs
+html_mod = __import__('html')  # APOD 网页抓取需要 HTML 实体反转义
 
 class _VercelPathMiddleware:
     def __init__(self, wsgi_app):
@@ -113,6 +114,14 @@ def deg_to_wind_dir(deg):
     dirs = ["北", "东北", "东", "东南", "南", "西南", "西", "西北"]
     idx = round(deg / 45) % 8
     return dirs[idx]
+
+def wind_beaufort(kmh):
+    """将 Open-Meteo 的 km/h 风速换算为蒲福风级，与本地兜底字段保持同一口径。"""
+    if kmh is None:
+        return "?"
+    limits = (1, 6, 12, 20, 29, 39, 50, 62, 75, 89, 103, 118)
+    level = next((i for i, v in enumerate(limits, 1) if kmh < v), 13)
+    return str(level) if level <= 12 else "12+"
 
 def predict_passes():
     """ISS 过境预测 (简化数学模型，预设观测点: 澳门)"""
@@ -322,7 +331,7 @@ def api_space_body():
             "_source": "demo",
         })
     elif bt == "mars":
-        if NASA_KEY != "DEMO":
+        if NASA_KEY != "DEMO_KEY":
             try:
                 data = safe_fetch(f"https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/latest_photos?api_key={NASA_KEY}", timeout=10)
                 if data and data.get("latest_photos"):
@@ -351,7 +360,7 @@ def api_space_body():
             "caption": "月球轨道物理指标 — 重力: 1.62 m/s² │ 半径: 1737.4 km │ 密度: 3.34 g/cm³ │ 月相: " + mp["phase_name"],
             "imageUrl": "https://svs.gsfc.nasa.gov/vis/a000000/a005000/a005048/moon.0001.jpg" if mp["illumination_pct"]>90 else "https://images.unsplash.com/photo-1522030299830-16b8d3d049fe?w=800",
             "body_type": "moon",
-            "moon_phase": moon_phase(),
+            "moon_phase": mp,
             "_source": "demo",
         })
     return jsonify({"error": "Unknown body type"}), 400
@@ -445,7 +454,7 @@ def api_weather():
             hum = str(c.get("relative_humidity_2m", 999))
             wx = wmo_to_cn(c.get("weather_code"))
             wdir = deg_to_wind_dir(c.get("wind_direction_10m"))
-            wspd = str(round(c.get("wind_speed_10m", 0)))
+            wspd = wind_beaufort(c.get("wind_speed_10m", 0))
             # 尝试 Open-Meteo Air Quality API
             aqi_val = "--"; aqi_name = "N/A"
             try:
@@ -482,18 +491,21 @@ def api_solar_storm():
     # 短缓存：太阳活动变化很慢，10 分钟刷新一次即可（更快、也避免频繁打 NASA 被限流）
     if _STORM_CACHE.get("data") and (time.time() - _STORM_CACHE.get("time", 0)) < 600:
         return jsonify(_STORM_CACHE["data"])
-    # 1. NOAA SWPC 实时太阳风等离子体（若可达为最理想实时源）
+    # 1. NOAA SWPC 行星地磁 Kp 指数（实时·免 Key·稳定）
+    #    旧端点 solar-wind/plasma-1-day.json 已被 NOAA 下线(404)，改用 planetary K-index。
+    #    Kp≥5 才算地磁风暴；阈值保守，避免 X 射线耀斑误触发前端警报音。
     try:
-        raw = safe_fetch("https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json", timeout=6)
+        raw = safe_fetch("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json", timeout=6)
         if raw and len(raw) > 1:
-            L = raw[-1]
-            spd = float(L[2])
-            note = f"Solar wind {spd:.0f} km/s | Density: {L[1]} p/cc | Temp: {L[3]}K"
-            note = ("[STORM ALERT] " if spd >= 700 else "[ACTIVE] " if spd >= 600 else "[QUIET] ") + note
+            L = raw[-1]  # {"time_tag":..., "Kp":..., "a_running":..., "station_count":...}
+            kp = float(L["Kp"])
+            level = ("[STORM ALERT] G" + str(min(5, int(kp - 4))) if kp >= 5
+                     else "[ACTIVE]" if kp >= 4 else "[QUIET]")
+            note = f"{level} Geomagnetic Kp {kp:.2f} | a-index {L.get('a_running','?')}"
             payload = {
-                "startTime": L[0], "catalog": "NOAA SWPC",
-                "instruments": "DSCOVR, ACE",
-                "note": note, "storm_active": spd >= 600,
+                "startTime": L["time_tag"], "catalog": "NOAA SWPC · Planetary K-index",
+                "instruments": "GOES, DSCOVR",
+                "note": note, "storm_active": kp >= 5,
                 "_source": "live",
             }
             _STORM_CACHE.update(data=payload, time=time.time())
@@ -563,6 +575,7 @@ def api_health():
         "service": "轨道之眼 OrbitEye v1.0",
         "port": PORT,
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "_source": "local",
     })
 
 # [Dashboard 聚合 — 并行拉取全部数据]
@@ -594,6 +607,12 @@ def api_dashboard():
             except Exception: results[key] = {"error": "timeout"}
     results["macao"] = {"lat": MACAO_LAT, "lon": MACAO_LON}
     results["timestamp"] = datetime.now(timezone.utc).isoformat()
+    # 聚合端点也必须给出来源真相：取所有子来源中最弱的一档
+    rank = {'live':1, 'open-meteo':1, 'celestrak':1, 'NASA DONKI':1,
+            'archive':2, 'local':3, 'local-cache':3, 'static':3, 'celestrak-cache':3,
+            'demo':4, 'local_simulated_fallback':4}
+    sources = [v.get('_source') for v in results.values() if isinstance(v, dict) and v.get('_source')]
+    results["_source"] = max(sources, key=lambda s: rank.get(s, 3)) if sources else "local"
     return jsonify(results)
 
 # ═══════════════════════════════════════════════════
@@ -709,50 +728,30 @@ def _classify_satellite(name):
 
 @app.route('/api/space/satellites')
 def api_satellites():
+    global TLE_CACHE
     # ── 1. 优先从 TLE 内存缓存取 (最快) ──
+    # BUG 修复：只认 _source=celestrak 的真实数据。api_tle 全失败时会把
+    # local_simulated_fallback 的 ORBIT-MOCK 写进同一缓存，绝不能当真实卫星统计。
     sat_names = []
     groups_ok = 0
     from_cache = False
+    cache_kind = None  # 'celestrak' | 'celestrak-cache' | 'static'
 
     cached = TLE_CACHE.get("data") if isinstance(TLE_CACHE, dict) else None
-    if cached and time.time() - TLE_CACHE.get("time", 0) < 14400:
+    cache_time = TLE_CACHE.get("time", 0) if isinstance(TLE_CACHE, dict) else 0
+    if (cached and cached.get("_source") == "celestrak"
+            and time.time() - cache_time < 14400):
         for s in cached.get("sats", []):
             sat_names.append(s.get("name", ""))
         groups_ok = cached.get("groups", 0)
         from_cache = True
+        cache_kind = 'celestrak'
 
-    # ── 2. TLE 缓存不够 → 直接拉 CelesTrak ──
+    # ── 2. 内存缓存不够 → 读磁盘缓存（0ms），但校验 TTL ──
+    # BUG 修复：磁盘缓存原来无过期时间，命中即永久冻结。现在超 2h 标记过期，
+    # 数据仍返回（避免空窗），但触发后台刷新，且来源标注为归档而非实时。
+    disk_stale = False
     if len(sat_names) < 500:
-        sat_names = []
-        groups_ok = 0
-        from_cache = False
-        # 分批拉取，每组间隔 1 秒避免限流
-        for group in ["active", "starlink", "oneweb", "stations",
-                       "gps-ops", "iridium", "visual"]:
-            try:
-                r = requests.get(
-                    f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle",
-                    timeout=15, headers={"User-Agent": USER_AGENT})
-                lines = r.text.strip().split('\n')
-                if _is_valid_tle(lines):
-                    for i in range(0, len(lines) - 2, 3):
-                        sat_names.append(lines[i].strip())
-                    groups_ok += 1
-            except Exception:
-                pass
-
-    # ── 3. 持久磁盘缓存：成功拉取时保存，限流/数据不足时读取 ──
-    if sat_names and not from_cache and len(sat_names) > 3000:
-        # 只有直接拉取 CelesTrak 且数据足够多才覆盖磁盘缓存
-        try:
-            save_data = {"names": sat_names, "time": time.time(), "groups": groups_ok}
-            with open(SAT_CACHE_FILE, "w", encoding="utf-8") as f:
-                json.dump(save_data, f, ensure_ascii=False)
-        except Exception:
-            pass
-
-    # 当前数据不足 → 尝试磁盘缓存
-    if len(sat_names) < 1000:
         try:
             if SAT_CACHE_FILE.exists():
                 with open(SAT_CACHE_FILE, "r", encoding="utf-8") as f:
@@ -761,6 +760,60 @@ def api_satellites():
                     sat_names = saved["names"]
                     groups_ok = saved.get("groups", 0)
                     from_cache = True
+                    cache_kind = 'celestrak-cache'
+                    age = time.time() - saved.get("time", 0)
+                    disk_stale = age > TLE_CACHE_TTL
+        except Exception:
+            pass
+
+    # 磁盘缓存过期 → 后台异步刷新（不阻塞响应，保持 0.2s）
+    if disk_stale or not sat_names:
+        _spawn_tle_refresh()
+
+    # ── 3. 磁盘缓存也没有 → 同步并行拉 CelesTrak ──
+    if len(sat_names) < 500:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        fresh_sats = []
+        groups_ok = 0
+        with ThreadPoolExecutor(max_workers=len(TLE_GROUPS)) as pool:
+            futures = {pool.submit(_fetch_tle_group, g): g for g in TLE_GROUPS}
+            try:
+                for fut in as_completed(futures, timeout=8):
+                    sats = fut.result()
+                    if sats:
+                        fresh_sats.extend(sats)
+                        groups_ok += 1
+            except Exception:
+                pass  # 总超时：放弃剩余组，用已拿到的部分
+        sat_names = [s["name"] for s in fresh_sats]
+
+        # BUG 修复：count 用截断后的实际条数，与 sats 长度一致（原用未去重全量）
+        if fresh_sats:
+            capped = fresh_sats[:6000]
+            try:
+                save_data = {"names": sat_names, "time": time.time(), "groups": groups_ok}
+                with open(SAT_CACHE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(save_data, f, ensure_ascii=False)
+            except Exception:
+                pass
+            TLE_CACHE = {
+                "data": {"count": len(capped), "sats": capped,
+                         "_source": "celestrak", "groups": groups_ok},
+                "time": time.time()
+            }
+            cache_kind = 'celestrak'
+
+    # 极端情况：以上都拿不到 → 兜底读一次磁盘缓存（兼容旧逻辑）
+    if len(sat_names) < 1000 and not from_cache:
+        try:
+            if SAT_CACHE_FILE.exists():
+                with open(SAT_CACHE_FILE, "r", encoding="utf-8") as f:
+                    saved = json.load(f)
+                if saved.get("names") and len(saved["names"]) > len(sat_names):
+                    sat_names = saved["names"]
+                    groups_ok = saved.get("groups", 0)
+                    from_cache = True
+                    cache_kind = 'celestrak-cache'
         except Exception:
             pass
 
@@ -777,10 +830,13 @@ def api_satellites():
     if sat_names:
         total_live = len(sat_names)
         total_str = f"{total_live:,}"
-        if from_cache:
-            total_source = f"CelesTrak 磁盘缓存 ({groups_ok}组, {total_live:,}颗, 限流恢复)"
-        else:
+        # BUG 修复：来源文案与实际数据一致。缓存/归档不再伪装成"实时拉取"。
+        if cache_kind == 'celestrak':
             total_source = f"CelesTrak 实时拉取 ({groups_ok}组, {total_live:,}颗)"
+        elif cache_kind == 'celestrak-cache':
+            total_source = f"CelesTrak 缓存快照 ({groups_ok}组, {total_live:,}颗, 后台刷新中)"
+        else:
+            total_source = f"卫星名称参考 ({groups_ok}组, {total_live:,}颗)"
         countries_source = "基于卫星名称推定国籍"
     else:
         total_str = "~9,900"
@@ -849,7 +905,8 @@ def api_satellites():
         "countries_source": countries_source,
         "countries": countries,
         "groups_fetched": groups_ok,
-        "_source": "celestrak" if sat_names else "static",
+        # BUG 修复：模拟数据不再标成 celestrak 实时；缓存标 celestrak-cache。
+        "_source": cache_kind or "static",
     })
 
 # ═══════════════════════════════════════════════════
@@ -857,17 +914,63 @@ def api_satellites():
 # ═══════════════════════════════════════════════════
 @app.route('/api/space/iss-pass-detail')
 def api_iss_pass_detail():
+    # 距离复用 /iss 的最近一次实测坐标，不再硬编码；过境窗口为本地轨道模型推算
+    if last_iss["lat"] is not None and last_iss["lon"] is not None:
+        current_dist = round(macao_dist(last_iss["lat"], last_iss["lon"]), 1)
+    else:
+        current_dist = None
     return jsonify({
-        "current_distance_km": 58.7,
-        "in_window": True,
+        "current_distance_km": current_dist,
+        "in_window": current_dist is not None and current_dist < 1000,
         "next_passes": predict_passes()[:3],
         "moon_phase": moon_phase(),
+        "_source": "local",
     })
 
 # ═══════════════════════════════════════════════════
 #  [新] APOD — NASA 每日天文图
 # ═══════════════════════════════════════════════════
 APOD_CACHE = {"data": None, "date": None, "ttl": 3600}
+
+def _fetch_apod_web():
+    """无需 API Key：从 APOD 官方网页抓取当天真实影像。
+    锚定指向 science.nasa.gov/image-article/apod-<slug>/ 的图片，避免误取聚合页其他新闻图。
+    成功返回 dict(_source='live')，失败返回 None。"""
+    try:
+        r = requests.get("https://apod.nasa.gov/apod/astropix.html", timeout=8,
+                         headers={"User-Agent": "Mozilla/5.0 (compatible; OrbitEye/1.0; Educational)"})
+        if r.status_code != 200:
+            return None
+        h = r.text
+        m = re.search(
+            r'<a href="https://science\.nasa\.gov/image-article/(apod-[^"/]+)/"[^>]*>\s*'
+            r'<img[^>]*src="([^"]+)"[^>]*alt="([^"]*)"', h, re.S)
+        if not m:
+            return None
+        slug, src, alt = m.groups()
+        src = html_mod.unescape(src).replace("&amp;", "&")
+        alt = html_mod.unescape(alt).strip()
+        parts = slug.split("-")  # apod-2026-november-20-v-g-r
+        if len(parts) >= 5:
+            yyyy, mon, dd = parts[1], parts[2], parts[3]
+            title = "-".join(parts[4:]).upper()
+        else:
+            yyyy = mon = dd = ""
+            title = "ASTRONOMY PICTURE OF THE DAY"
+        mon_map = {"january":"01","february":"02","march":"03","april":"04","may":"05","june":"06",
+                   "july":"07","august":"08","september":"09","october":"10","november":"11","december":"12"}
+        date_str = f"{yyyy}-{mon_map.get(mon,'01')}-{dd.zfill(2)}" if yyyy else datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        return {
+            "title": title or "ASTRONOMY PICTURE OF THE DAY",
+            "date": date_str,
+            "explanation": alt or "NASA Astronomy Picture of the Day — 每日天文影像。",
+            "imageUrl": src,
+            "media_type": "image",
+            "copyright": "NASA/APOD",
+            "_source": "live",
+        }
+    except Exception:
+        return None
 
 @app.route('/api/space/apod')
 def api_apod():
@@ -876,8 +979,8 @@ def api_apod():
     today_str = now.strftime("%Y-%m-%d")
     if APOD_CACHE["date"] == today_str and APOD_CACHE["data"]:
         return jsonify(APOD_CACHE["data"])
-    # NASA APOD 现在强制要求 API Key，直接带 Key 请求
-    if NASA_KEY != "DEMO":
+    # 1) 配置了正式 Key → 走 NASA APOD API（字段最全）
+    if NASA_KEY != "DEMO_KEY":
         try:
             data = safe_fetch(f"https://api.nasa.gov/planetary/apod?api_key={NASA_KEY}", timeout=8)
             if data and data.get("url"):
@@ -893,12 +996,25 @@ def api_apod():
                 APOD_CACHE = {"data": result, "date": today_str, "ttl": 3600}
                 return jsonify(result)
         except Exception: pass
-    # 兜底硬编码
+    # 2) DEMO_KEY / 无 Key → 抓 APOD 官方网页（无需 Key，真实当天影像）
+    web = _fetch_apod_web()
+    if web:
+        APOD_CACHE = {"data": web, "date": today_str, "ttl": 3600}
+        return jsonify(web)
+    # 3) 兜底硬编码
     return jsonify({
         "title": "创生之柱 — 鹰状星云 (M16)",
         "date": today_str,
         "explanation": "哈勃太空望远镜于1995年拍摄的经典影像。这些高达数光年的宇宙尘埃与气体柱位于鹰状星云核心，正在被附近年轻大质量恒星的强烈紫外线雕刻，是银河系最活跃的恒星形成区之一。",
-        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Pillars_of_creation_2014_HST_WFC3-UVIS_full-res_denoised.jpg/800px-Pillars_of_creation_2014_HST_WFC3-UVIS_full-res_denoised.jpg",
+        # 内联 SVG 兜底图：避免外链在受限网络下破图。真实影像在 NASA Key 可用时由上方实时分支提供。
+        "imageUrl": "data:image/svg+xml;utf8," + __import__('urllib.parse', fromlist=['quote']).quote(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">'
+            '<defs><radialGradient id="n" cx="50%" cy="45%" r="70%">'
+            '<stop offset="0%" stop-color="#1a3a5c"/><stop offset="55%" stop-color="#0c1b2e"/><stop offset="100%" stop-color="#05080f"/>'
+            '</radialGradient></defs><rect width="800" height="500" fill="url(#n)"/>'
+            '<g fill="#cfe4f5">'
+            + ''.join(f'<circle cx="{(i*137+53)%780+10}" cy="{(i*89+37)%470+15}" r="{1+(i%4)*0.5}" opacity="{0.3+(i%5)*0.12}"/>' for i in range(120))
+            + '</g><text x="400" y="440" fill="#7fa8c8" font-family="monospace" font-size="15" text-anchor="middle" letter-spacing="3">DEEP SKY · OFFLINE PREVIEW</text></svg>'),
         "media_type": "image",
         "copyright": "NASA/ESA/HST",
         "_source": "demo",
@@ -909,7 +1025,7 @@ def api_apod():
 # ═══════════════════════════════════════════════════
 @app.route('/api/space/neo')
 def api_neo():
-    if NASA_KEY != "DEMO":
+    if NASA_KEY != "DEMO_KEY":
         try:
             data = safe_fetch(f"https://api.nasa.gov/neo/rest/v1/feed?api_key={NASA_KEY}", timeout=10)
             if data and data.get("near_earth_objects"):
@@ -928,9 +1044,62 @@ def api_neo():
                             "approach_date": neo.get("close_approach_data", [{}])[0].get("close_approach_date", "?"),
                         })
                 if objects:
-                    return jsonify({"count": len(objects), "objects": objects[:12], "_source": "live"})
+                    return jsonify({"count": min(len(objects), 12), "objects": objects[:12], "_source": "live"})
         except Exception:
             pass
+    # DEMO_KEY / 无 Key → JPL CNEOS CAD API（无需 Key，真实近地天体接近数据）
+    try:
+        today = datetime.now(timezone.utc)
+        d0 = (today - timedelta(days=2)).strftime("%Y-%m-%d")
+        d1 = (today + timedelta(days=4)).strftime("%Y-%m-%d")
+        cad = safe_fetch(
+            f"https://ssd-api.jpl.nasa.gov/cad.api?date-min={d0}&date-max={d1}&dist-max=0.05&sort=dist&body=Earth",
+            timeout=10)
+        if cad and cad.get("data"):
+            fields = cad.get("fields", [])
+            idx = {f: i for i, f in enumerate(fields)}
+            objects = []
+            for row in cad["data"][:12]:
+                def gv(key, default=""):
+                    i = idx.get(key)
+                    return row[i] if i is not None and i < len(row) else default
+                # dist 单位是 AU；1 AU ≈ 389.17 地月距离
+                try:
+                    lunar = round(float(gv("dist", "0")) * 389.17, 1)
+                except Exception:
+                    lunar = 0.0
+                try:
+                    v_kph = round(float(gv("v_rel", "0")) * 3600, 0)
+                except Exception:
+                    v_kph = 0.0
+                # 绝对星等 H → 直径(km)，反照率 0.14 经验公式：D = 1329 / sqrt(albedo) * 10^(-H/5)
+                try:
+                    H = float(gv("h", "30"))
+                    diameter = round(1329 / math.sqrt(0.14) * 10 ** (-H / 5.0), 4)
+                except Exception:
+                    diameter = 0.0
+                # cd 形如 "2026-Nov-21 22:28" → "2026-11-21"
+                raw_cd = str(gv("cd", ""))
+                mon_map2 = {"Jan":"01","Feb":"02","Mar":"03","Apr":"04","May":"05","Jun":"06",
+                            "Jul":"07","Aug":"08","Sep":"09","Oct":"10","Nov":"11","Dec":"12"}
+                cd_parts = raw_cd.split()
+                if len(cd_parts) >= 2:
+                    yy, mm, dd = cd_parts[0].split("-")
+                    date_fmt = f"{yy}-{mon_map2.get(mm, mm)}-{dd.zfill(2)}"
+                else:
+                    date_fmt = raw_cd[:10]
+                objects.append({
+                    "name": gv("des", "?"),
+                    "diameter_km": diameter,
+                    "velocity_kph": v_kph,
+                    "miss_distance_lunar": lunar,
+                    "hazardous": False,  # CAD 不提供危险标记，统一保守置 false
+                    "approach_date": date_fmt,
+                })
+            if objects:
+                return jsonify({"count": len(objects), "objects": objects, "_source": "live"})
+    except Exception:
+        pass
     return jsonify({
         "count": 8,
         "objects": [
@@ -995,6 +1164,34 @@ def api_mars_weather():
                 "sols": sols,
                 "station": f"Gale Crater · Curiosity ({data.get('soles', [])[0].get('sol', '?') if data.get('soles') else '?'})",
                 "_source": "live",
+            })
+    except Exception:
+        pass
+    # 备用真实源 MAAS2 (apollorion) — NASA 官方 RSS 挂掉时的数据保底。
+    # 注意：MAAS2 更新频率低，可能返回归档数据，故标 _source=archive（前端显示「归档」），
+    # 不伪装成实时。解出的字段与 REMS 主源保持同构。
+    try:
+        m = safe_fetch("https://api.maas2.apollorion.com/", timeout=8,
+                       headers={"User-Agent": USER_AGENT})
+        if m and m.get("sol"):
+            def _num(v):
+                try: return round(float(v), 1)
+                except (ValueError, TypeError): return None
+            sol = {
+                "sol": m.get("sol", "?"),
+                "season": m.get("season", "?"),
+                "max_temp_c": _num(m.get("max_temp")),
+                "min_temp_c": _num(m.get("min_temp")),
+                "pressure_pa": _num(m.get("pressure")),
+                "wind_mps": _num(m.get("wind_speed")) if m.get("wind_speed") not in (None, "--") else None,
+                "atmo_opacity": m.get("atmo_opacity", "--"),
+                "terrestrial_date": m.get("terrestrial_date", "?"),
+                "uv_index": m.get("local_uv_irradiance_index", "--"),
+            }
+            return jsonify({
+                "sols": [sol],
+                "station": f"MAAS2 归档 · Sol {m.get('sol','?')} / {m.get('terrestrial_date','?')}",
+                "_source": "archive",
             })
     except Exception:
         pass
@@ -1099,7 +1296,8 @@ def api_exoplanets():
                 planets.append({
                     "name": p.get("pl_name","?"),
                     "star": p.get("hostname","?"),
-                    "distance_ly": round(dist, 1) if dist else None,
+                    # NASA archive 的 sy_dist 单位是秒差距，前端字段是光年
+                    "distance_ly": round(dist * 3.26156, 2) if dist else None,
                     "mass_earth": round(mass, 2) if mass else None,
                     "orbit_days": round(p.get("pl_orbper", 0), 2) if p.get("pl_orbper") else None,
                     "radius_earth": round(p.get("pl_rade",0), 2) if p.get("pl_rade") else None,
@@ -1117,18 +1315,18 @@ def api_exoplanets():
     return jsonify({
         "count": 12, "description": "精选太阳系外行星 — 高科学价值目标",
         "planets": [
-            {"name":"Proxima Centauri b","distance_ly":4.24,"mass_earth":1.27,"orbit_days":11.2,"star":"Proxima Centauri","facility":"ESO-HARPS"},
-            {"name":"TRAPPIST-1e","distance_ly":39.5,"mass_earth":0.77,"orbit_days":6.1,"star":"TRAPPIST-1","facility":"Spitzer"},
-            {"name":"55 Cancri e","distance_ly":41,"mass_earth":8.08,"orbit_days":0.74,"star":"55 Cancri","facility":"Keck"},
-            {"name":"LHS 1140 b","distance_ly":48.8,"mass_earth":6.98,"orbit_days":24.7,"star":"LHS 1140","facility":"MEarth"},
-            {"name":"HD 189733 b","distance_ly":64.5,"mass_earth":361,"orbit_days":2.2,"star":"HD 189733","facility":"ELODIE"},
-            {"name":"TOI-700 d","distance_ly":101.4,"mass_earth":1.72,"orbit_days":37.4,"star":"TOI-700","facility":"TESS"},
-            {"name":"K2-18 b","distance_ly":124,"mass_earth":8.63,"orbit_days":32.9,"star":"K2-18","facility":"Kepler"},
-            {"name":"HD 209458 b","distance_ly":159,"mass_earth":219,"orbit_days":3.5,"star":"HD 209458","facility":"STARE"},
-            {"name":"Kepler-186f","distance_ly":582,"mass_earth":1.4,"orbit_days":129.9,"star":"Kepler-186","facility":"Kepler"},
-            {"name":"Kepler-452b","distance_ly":1402,"mass_earth":5.0,"orbit_days":384.8,"star":"Kepler-452","facility":"Kepler"},
-            {"name":"WASP-12b","distance_ly":1410,"mass_earth":445,"orbit_days":1.1,"star":"WASP-12","facility":"SuperWASP"},
-            {"name":"Gliese 667 Cc","distance_ly":23.6,"mass_earth":3.7,"orbit_days":28.1,"star":"Gliese 667C","facility":"ESO-HARPS"},
+            {"name":"Proxima Centauri b","distance_ly":4.24,"mass_earth":1.27,"radius_earth":1.03,"orbit_days":11.2,"star":"Proxima Centauri","facility":"ESO-HARPS"},
+            {"name":"TRAPPIST-1e","distance_ly":39.5,"mass_earth":0.77,"radius_earth":0.92,"orbit_days":6.1,"star":"TRAPPIST-1","facility":"Spitzer"},
+            {"name":"55 Cancri e","distance_ly":41,"mass_earth":8.08,"radius_earth":1.88,"orbit_days":0.74,"star":"55 Cancri","facility":"Keck"},
+            {"name":"LHS 1140 b","distance_ly":48.8,"mass_earth":6.98,"radius_earth":1.73,"orbit_days":24.7,"star":"LHS 1140","facility":"MEarth"},
+            {"name":"HD 189733 b","distance_ly":64.5,"mass_earth":361,"radius_earth":12.7,"orbit_days":2.2,"star":"HD 189733","facility":"ELODIE"},
+            {"name":"TOI-700 d","distance_ly":101.4,"mass_earth":1.72,"radius_earth":1.14,"orbit_days":37.4,"star":"TOI-700","facility":"TESS"},
+            {"name":"K2-18 b","distance_ly":124,"mass_earth":8.63,"radius_earth":2.61,"orbit_days":32.9,"star":"K2-18","facility":"Kepler"},
+            {"name":"HD 209458 b","distance_ly":159,"mass_earth":219,"radius_earth":15.2,"orbit_days":3.5,"star":"HD 209458","facility":"STARE"},
+            {"name":"Kepler-186f","distance_ly":582,"mass_earth":1.4,"radius_earth":1.17,"orbit_days":129.9,"star":"Kepler-186","facility":"Kepler"},
+            {"name":"Kepler-452b","distance_ly":1402,"mass_earth":5.0,"radius_earth":1.63,"orbit_days":384.8,"star":"Kepler-452","facility":"Kepler"},
+            {"name":"WASP-12b","distance_ly":1410,"mass_earth":445,"radius_earth":22.3,"orbit_days":1.1,"star":"WASP-12","facility":"SuperWASP"},
+            {"name":"Gliese 667 Cc","distance_ly":23.6,"mass_earth":3.7,"radius_earth":1.54,"orbit_days":28.1,"star":"Gliese 667C","facility":"ESO-HARPS"},
         ],
         "_source": "demo",
     })
@@ -1247,7 +1445,7 @@ def _fetch_tle_group(group):
     try:
         r = requests.get(
             f"https://celestrak.org/NORAD/elements/gp.php?GROUP={group}&FORMAT=tle",
-            timeout=15, headers={"User-Agent": USER_AGENT})
+            timeout=5, headers={"User-Agent": USER_AGENT})
         lines = r.text.strip().split('\n')
         if not _is_valid_tle(lines):
             return None  # 限流或无效
@@ -1262,6 +1460,52 @@ def _fetch_tle_group(group):
     except Exception:
         return None
 
+# ── TLE 缓存后台刷新：缓存陈旧时异步拉取，不阻塞当前响应 ──
+# 磁盘缓存带 2 小时 TTL；过期后先返回缓存，再后台刷新，兼顾「快」与「不永久冻结」。
+TLE_CACHE_TTL = 7200        # 磁盘缓存有效期（秒）
+TLE_REFRESH_STATE = {"busy": False, "last_attempt": 0}
+TLE_REFRESH_MIN_GAP = 60    # 两次刷新尝试最小间隔，防止限流时反复空跑
+
+def _spawn_tle_refresh():
+    """后台并行拉取 CelesTrak 并更新磁盘 + 内存缓存；失败静默，不影响当前请求。"""
+    import threading
+    now = time.time()
+    if TLE_REFRESH_STATE["busy"] or now - TLE_REFRESH_STATE["last_attempt"] < TLE_REFRESH_MIN_GAP:
+        return
+    TLE_REFRESH_STATE["busy"] = True
+    TLE_REFRESH_STATE["last_attempt"] = now
+    def _work():
+        global TLE_CACHE
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            fresh, groups = [], 0
+            with ThreadPoolExecutor(max_workers=len(TLE_GROUPS)) as pool:
+                futures = {pool.submit(_fetch_tle_group, g): g for g in TLE_GROUPS}
+                try:
+                    for fut in as_completed(futures, timeout=8):
+                        sats = fut.result()
+                        if sats:
+                            fresh.extend(sats); groups += 1
+                except Exception:
+                    pass
+            if len(fresh) > 3000:
+                names = [s["name"] for s in fresh]
+                try:
+                    with open(SAT_CACHE_FILE, "w", encoding="utf-8") as f:
+                        json.dump({"names": names, "time": time.time(), "groups": groups}, f, ensure_ascii=False)
+                except Exception:
+                    pass
+                capped = fresh[:6000]
+                TLE_CACHE = {
+                    "data": {"count": len(capped), "sats": capped, "_source": "celestrak", "groups": groups},
+                    "time": time.time()
+                }
+        except Exception:
+            pass
+        finally:
+            TLE_REFRESH_STATE["busy"] = False
+    threading.Thread(target=_work, daemon=True).start()
+
 @app.route('/api/space/tle')
 def api_tle():
     global TLE_CACHE
@@ -1270,21 +1514,28 @@ def api_tle():
 
     cached = TLE_CACHE["data"]
 
-    # 多组聚合拉取（去重：按 TLE 行1 的 NORAD ID）
+    # 多组并行拉取（去重：按 TLE 行1 的 NORAD ID）
+    # 旧逻辑串行 7 组 × timeout=15 最坏 105s，与 Vercel 60s 上限冲突。
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     all_sats = []
     seen_norad = set()
     live_groups = 0
-
-    for group in TLE_GROUPS:
-        sats = _fetch_tle_group(group)
-        if sats:
-            for s in sats:
-                # 用 TLE line1 第3-7位字符作为 NORAD ID 去重
-                norad_id = s["tle1"][2:7].strip() if len(s["tle1"]) > 7 else s["name"]
-                if norad_id not in seen_norad:
-                    seen_norad.add(norad_id)
-                    all_sats.append(s)
-            live_groups += 1
+    with ThreadPoolExecutor(max_workers=len(TLE_GROUPS)) as pool:
+        futures = {pool.submit(_fetch_tle_group, g): g for g in TLE_GROUPS}
+        try:
+            for fut in as_completed(futures, timeout=8):
+                sats = fut.result()
+                if not sats:
+                    continue
+                for s in sats:
+                    # 用 TLE line1 第3-7位字符作为 NORAD ID 去重
+                    norad_id = s["tle1"][2:7].strip() if len(s["tle1"]) > 7 else s["name"]
+                    if norad_id not in seen_norad:
+                        seen_norad.add(norad_id)
+                        all_sats.append(s)
+                live_groups += 1
+        except Exception:
+            pass  # 总超时：用已拿到的部分数据
 
     if all_sats:
         # 限制前端性能，最多 6000 颗
@@ -1319,7 +1570,8 @@ def api_tle():
             "tle2": tle2
         })
     mock_data = {"count": len(mock_sats), "sats": mock_sats, "_source": "local_simulated_fallback"}
-    TLE_CACHE = {"data": mock_data, "time": time.time()}
+    # 模拟数据不能写入长期缓存：上游恢复后必须下一次请求就能重试（本地缓存命中只看 time）
+    TLE_CACHE = {"data": mock_data, "time": 0}
     return jsonify(mock_data)
 
 # ═══════════════════════════════════════════════════
@@ -1440,13 +1692,13 @@ def api_planet_info():
         planet = "太阳"
     global SOLAR_CACHE, SOLAR_FAIL
 
-    # 近期已知 le-systeme 不可达 → 直接返回本地真实数据，避免每次请求卡 8~15 秒
-    if SOLAR_FAIL["time"] and (time.time() - SOLAR_FAIL["time"]) < 600:
+    # le-systeme 不可达时的熔断：已有有效缓存仍优先返回缓存，不让熔断压过缓存
+    if SOLAR_FAIL["time"] and (time.time() - SOLAR_FAIL["time"]) < 600 and not SOLAR_CACHE["data"]:
         fb = _planet_fallback(planet)
         if fb:
-            return jsonify({"planet": planet, "info": fb["info"], "source": "local-cache"})
+            return jsonify({"planet": planet, "info": fb["info"], "source": "local-cache", "_source": "local-cache"})
 
-    # ── 1. 尝试 Solar System OpenData API ──
+    # ── 1. 尝试 Solar System OpenData API / 复用已有缓存 ──
     try:
         now = time.time()
         # 缓存 1 小时（所有天体一次拉取）
@@ -1460,20 +1712,21 @@ def api_planet_info():
             else:
                 SOLAR_FAIL["time"] = now
         if SOLAR_CACHE["data"]:
-            en_name = PLANET_NAME_MAP.get(planet, planet)
+            en_name = PLANET_NAME_MAP.get(planet) or planet
+            en_key = en_name.strip().lower()
             bodies = SOLAR_CACHE["data"].get("bodies", [])
             for b in bodies:
-                if b.get("englishName") == en_name:
+                if (b.get("englishName") or "").strip().lower() == en_key:
                     info = _format_planet_info(b, planet)
-                    return jsonify({"planet": planet, "info": info, "source": "Solar-System-OpenData-API"})
+                    return jsonify({"planet": planet, "info": info, "source": "Solar-System-OpenData-API", "_source": "Solar-System-OpenData-API"})
     except Exception:
         SOLAR_FAIL["time"] = time.time()
 
     # ── 2. API 不可用 → 使用内置真实行星数据兜底 ──
     fb = _planet_fallback(planet)
     if fb:
-        return jsonify({"planet": planet, "info": fb["info"], "source": "local-cache"})
-    return jsonify({"planet": planet, "info": f"{planet} | 数据暂时不可用。", "source": "error"})
+        return jsonify({"planet": planet, "info": fb["info"], "source": "local-cache", "_source": "local-cache"})
+    return jsonify({"planet": planet, "info": f"{planet} | 数据暂时不可用。", "source": "error", "_source": "error"})
 
 # ═══════════════════════════════════════════════════
 #  启动
@@ -1484,7 +1737,7 @@ if __name__ == "__main__":
 |  轨道之眼 OrbitEye  v1.0                                  |
 |                                                          |
 |  Server:  http://127.0.0.1:{PORT}                              |
-|  NASA Key: {"CONFIGURED" if NASA_KEY!="DEMO" else "DEMO (offline fallback)"} |
+|  NASA Key: {"CONFIGURED" if NASA_KEY!="DEMO_KEY" else "DEMO_KEY (limit/throttle — offline fallback)"} |
 |                                                          |
 |  Pages: [1] 遥测仪表盘  [2] 太阳系手势控制                |
 +==========================================================+

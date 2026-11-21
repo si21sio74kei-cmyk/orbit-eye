@@ -1,0 +1,26 @@
+# Vercel 部署排除清单：只保留运行必需文件（Space_Data_Center.py / api / web / requirements.txt）
+# GitHub 集成部署本身只上传 git 跟踪文件；此文件主要防御 vercel CLI 从本地目录直接上传时
+# 误把虚拟环境、验证截图、日志等开发产物塞进函数包，避免包体膨胀与冷启动变慢。
+
+# Python 运行环境与缓存
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# WorkBuddy 工作区数据（记忆 + 验证产物），不参与线上运行
+.workbuddy/
+
+# 版本控制与 IDE
+.git/
+.vscode/
+.idea/
+
+# 本地环境与文档（不参与函数运行）
+.env
+.env.*
+*.log
+docs/

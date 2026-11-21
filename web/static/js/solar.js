@@ -1,20 +1,16 @@
 // ──────────────────────────────────────────────────────
 //  数据配置 — 大尺寸确保可见，零外部贴图依赖
 // ──────────────────────────────────────────────────────
-// 著色器加載檢查
+// 著色器容错：只检查真正被使用的 RING_FS；缺失时用内联兜底，避免整页 3D 中断
+const RING_FS_FALLBACK = 'varying vec2 vUv; void main(){float edge=smoothstep(0.0,0.12,vUv.x)*(1.0-smoothstep(0.88,1.0,vUv.x));gl_FragColor=vec4(0.72,0.68,0.52,edge*0.55);}';
+const RING_FRAGMENT = (typeof RING_FS !== 'undefined') ? RING_FS : RING_FS_FALLBACK;
 (function(){
-  const missing=[];
-  if(typeof NOISE_GLSL==='undefined') missing.push('NOISE_GLSL');
-  if(typeof PLANET_VS==='undefined') missing.push('PLANET_VS');
-  if(typeof SUN_FS==='undefined') missing.push('SUN_FS');
-  if(missing.length>0){
-    console.error('[DSM] planet_shaders.js 著色器載入失敗！缺少: '+missing.join(', '));
-    console.error('[DSM] 請確認 /static/js/planet_shaders.js 存在且無語法錯誤');
-    console.warn('[DSM] 將使用純色材質降級顯示星球');
-  } else {
-    console.log('[DSM] GPU 著色器全部載入成功 ('+Object.keys(window).filter(k=>k.endsWith('_FS')).length+' fragment shaders)');
-  }
+  if(typeof RING_FS === 'undefined') console.warn('[DSM] RING_FS 未加载，土星环使用内联兜底；其余场景正常');
+  else console.log('[DSM] GPU 着色器链路就绪');
 })();
+// showCard 请求代际号与轻量转义，防止快速切换行星时旧响应覆盖新卡片
+let cardGen = 0;
+function escHTML(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // 電影級軌道 — 太陽半徑 3.50，所有行星軌道 > 6.0 絕不穿模（含日冕層）
 // 公转 v = 真实轨道角速度比例（地球=1.0）  |  自转 rot = 真实自转速度（地球=1.0）
 // 轨道间距按星球体积+光环计算，确保绝不穿模
@@ -52,6 +48,8 @@ texLoader.setCrossOrigin('anonymous');
 //  Three.js 场景初始化 (电影级 3D 光影)
 // ──────────────────────────────────────────────────────
 const cv=document.getElementById('ss-canvas'), handCanvas=document.getElementById('hand-overlay'), handCtx=handCanvas.getContext('2d');
+// 手势骨架画布初始就应与视口等大；否则初始 300×150 时按全屏坐标绘制会被裁切错位。
+handCanvas.width=innerWidth; handCanvas.height=innerHeight;
 const ssS=new THREE.Scene(), ssCam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,500); ssCam.position.set(0,12,20);
 const ssRn=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
 ssRn.setSize(innerWidth,innerHeight); ssRn.setPixelRatio(Math.min(devicePixelRatio,1.5));
@@ -130,7 +128,6 @@ function spawnShootingStar() {
 // ──────────────────────────────────────────────────────
 
 const ssObjs=[];
-const sunLightPos = new THREE.Vector3(0, 0, 0);
 
 P.forEach((p,i)=>{
   // 球體幾何（岩石行星用更高面數以呈現紋理細節）
@@ -246,7 +243,7 @@ P.forEach((p,i)=>{
     const rMat = new THREE.ShaderMaterial({
       uniforms: {uTime: {value: 0}},
       vertexShader: 'varying vec2 vUv; void main(){vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-      fragmentShader: RING_FS,
+      fragmentShader: RING_FRAGMENT,
       side: THREE.DoubleSide, transparent: true, depthWrite: false
     });
     const ring = new THREE.Mesh(rGeo, rMat);
@@ -344,6 +341,8 @@ if (earthObj && earthObj.moon) {
 // ──────────────────────────────────────────────────────
 let focus=0,speed=1,tRY=0,tZoom=16,ssRY=0,ssZoom=16,isPinching=false;
 let camOn=false,camStream=null,hands=null,trail=[],satActive=false,satData=null,satOpenTimer=null;
+let satRn=null, satCam=null;  // 卫星图渲染器引用，供 resize 同步尺寸
+let camBusy=false, camGen=0;  // 加载锁防双开；代际号让旧 pump 循环在关闭后自动退出
 let fpsCount=0,fpsStart=performance.now();
 window._hoverFrames=0; window._hoverZone='none'; window._lastHoverAction=0; window._cardActive=false;
 window._satTargetDistance=3.5; window._satCurrentDistance=3.5;
@@ -436,24 +435,29 @@ function updateUI(){ document.getElementById('st-planet').textContent=P[focus].n
 
 function showCard(){
   const p=P[focus], c=document.getElementById('planet-card'), tc='#'+PC[p.t].toString(16).padStart(6,'0');
-  c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${p.n}</div>
+  const myGen = ++cardGen;
+  c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${escHTML(p.n)}</div>
     <div style="color:#94a3b8;margin-top:14px;position:relative;">
-      <span style="display:inline-block;background:linear-gradient(90deg,transparent,rgba(56,189,248,.15),transparent);background-size:200% 100%;animation:shimmer 1.5s infinite;padding:8px 0;width:100%;">⚡ 正在建立星际数据链路...</span>
+      <span style="display:inline-block;background:linear-gradient(90deg,transparent,rgba(56,189,248,.15),transparent);background-size:200% 100%;animation:shimmer 1.5s infinite;padding:8px 0;width:100%;">正在建立星际数据链路…</span>
     </div>`;
   c.style.display='block'; c.style.borderColor=tc+'60'; c.style.boxShadow=`0 24px 64px rgba(0,0,0,.9),0 0 32px ${tc}30`;
   c.classList.add('show');
+  window._cardActive = true;
 
   const baseUrl = (location.protocol==='file:') ? 'http://127.0.0.1:5500' : '';
   (async () => {
     try{
       const resp = await fetch(`${baseUrl}/api/space/planet-info?planet=${encodeURIComponent(p.n)}`);
       const data = await resp.json();
-      c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${data.planet}</div>
-        <div style="color:#e2e8f0;margin-top:12px;line-height:1.8;">${data.info}</div>
-        <div style="color:rgba(148,163,184,.45);margin-top:14px;font-size:9px;letter-spacing:1px;text-align:right;">[DATA SOURCE: ${data.source}]</div>`;
+      if(myGen !== cardGen) return;  // 已有更新的行星请求，丢弃旧响应
+      const src = data._source || data.source || 'local';
+      c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${escHTML(data.planet || p.n)}</div>
+        <div style="color:#e2e8f0;margin-top:12px;line-height:1.8;">${escHTML(data.info || '--')}</div>
+        <div style="color:rgba(148,163,184,.55);margin-top:14px;font-size:9px;letter-spacing:1px;text-align:right;">[数据来源: ${escHTML(src)}]</div>`;
     }catch(e){
-      c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${p.n}</div>
-        <div style="color:#f87171;margin-top:14px;">⚠️ 星际数据链路中断<br><span style="font-size:11px;color:#94a3b8;">无法连接到深空观测站服务器</span></div>`;
+      if(myGen !== cardGen) return;
+      c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${escHTML(p.n)}</div>
+        <div style="color:#f87171;margin-top:14px;">星际数据链路中断<br><span style="font-size:11px;color:#94a3b8;">无法连接到深空观测站服务器</span></div>`;
     }
   })();
 }
@@ -465,21 +469,27 @@ function triggerAlert(msg){ const a=document.getElementById('swipe-alert'); a.te
 // ──────────────────────────────────────────────────────
 async function initCam(){
   const btn=document.getElementById('btn-cam');
+  if(camBusy) return;  // 加载中重复点击直接忽略，避免双开流/双 pump
   if(camOn){
-    camOn=false; camStream.getTracks().forEach(t=>t.stop());
+    // 关闭：停媒体轨 + 释放 MediaPipe 实例（否则每次重开都 new 一个，WASM/模型不回收）
+    camOn=false; camGen++; isPinching=false;
+    if(satOpenTimer){ clearTimeout(satOpenTimer); satOpenTimer=null; }
+    camStream?.getTracks().forEach(t=>t.stop()); camStream=null;
+    hands?.close?.(); hands=null;
     document.getElementById('webcam-pip').srcObject=null; document.getElementById('hand-overlay').style.display='none';
     document.getElementById('st-cam').textContent='关闭'; btn.textContent='📷 启动摄像头'; return;
   }
-  btn.textContent='加载中...';
+  camBusy=true; btn.textContent='加载中...';
   // 🛡️ 安全上下文检查
-  if (location.protocol === 'file:') { btn.textContent='⚠️ 请用 http://127.0.0.1:5500/solar 访问'; setTimeout(()=>{btn.textContent='📷 启动摄像头';},3500); return; }
+  if (location.protocol === 'file:' || !navigator.mediaDevices?.getUserMedia) { camBusy=false; btn.textContent='⚠️ 请用 localhost 或 HTTPS 访问'; setTimeout(()=>{btn.textContent='📷 启动摄像头';},3500); return; }
   // 🛡️ SDK 加载检查
-  if (typeof Hands === 'undefined') { btn.textContent='⚠️ AI模型加载失败，请刷新页面'; setTimeout(()=>{btn.textContent='📷 启动摄像头';},3500); return; }
+  if (typeof Hands === 'undefined') { camBusy=false; btn.textContent='⚠️ AI模型加载失败，请刷新页面'; setTimeout(()=>{btn.textContent='📷 启动摄像头';},3500); return; }
   try {
     camStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'}});
     const v=document.getElementById('webcam-pip'); v.srcObject=camStream;
     await new Promise(r=>{v.onloadedmetadata=r;if(v.readyState>=1)r();}); await v.play();
-    camOn=true; btn.textContent='📷 关闭摄像头'; document.getElementById('hand-overlay').style.display='block';
+    camOn=true; camGen++; const myGen=camGen; camBusy=false;
+    btn.textContent='📷 关闭摄像头'; document.getElementById('hand-overlay').style.display='block';
     
     hands=new Hands({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/'+f});
     hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
@@ -487,7 +497,7 @@ async function initCam(){
     hands.onResults(r => {
       const lm=r.multiHandLandmarks?.[0];
       if(!lm){
-        window._hoverZone='none'; window._hoverFrames=0; updateHoverUI();
+        window._hoverZone='none'; window._hoverFrames=0; updateHoverUI(); isPinching=false;
         document.getElementById('st-mode').textContent='未检测到手掌'; 
         window._lastWristX = undefined; 
         window._lastSpan = undefined; // 🖐️ 手离开时，同步清除“张合度”追踪记录
@@ -549,8 +559,8 @@ async function initCam(){
         // 🚀 速度驱动旋转：手掌滑动速度 = 地球旋转速度（1:1 响应，无延迟）
         if (window._lastWristX !== undefined) {
           const dx = wrist.x - window._lastWristX;
-          // 直接累积旋转速度：dx 大→转得快，dx 小→转得慢，手停→靠摩擦自然减速
-          window._satRotationVelocity = dx * 5.5;
+          // dx 有效时才注入速度；手停后保留上帧速度，交给卫星图动画按摩擦衰减
+          if (Math.abs(dx) > 0.0005) window._satRotationVelocity = dx * 5.5;
         }
         window._lastWristX = wrist.x;
 
@@ -621,12 +631,17 @@ async function initCam(){
     });
 
     async function cameraPumpLoop(){
-      if(!camOn) return;
-      if(v && v.readyState >= 2) try{ await hands.send({image:v}); }catch(e){ console.error('MediaPipe send error:', e); }
+      // 代际不符 = 这轮摄像头已关闭/重开，旧循环必须退出，避免两个 pump 并存互抢 hands。
+      if(!camOn || myGen!==camGen) return;
+      if(v && v.readyState >= 2 && hands) try{ await hands.send({image:v}); }catch(e){ console.error('MediaPipe send error:', e); }
+      if(!camOn || myGen!==camGen) return;  // await 期间可能已被关闭
       setTimeout(()=>requestAnimationFrame(cameraPumpLoop),33);
     }
     cameraPumpLoop();
-  } catch(e) { console.error(e); btn.textContent='📷 启动失败，请允许权限'; setTimeout(()=>{btn.textContent='📷 启动摄像头';},3500); }
+  } catch(e) {
+    console.error(e); camBusy=false; camOn=false; camStream?.getTracks().forEach(t=>t.stop());
+    btn.textContent='📷 启动失败，请允许权限'; setTimeout(()=>{btn.textContent='📷 启动摄像头';},3500);
+  }
 }
 
 function updateHoverUI(){
@@ -680,7 +695,7 @@ async function openSatMap(){
       const pct = ((c.count / totalCount) * 100).toFixed(1);
       listHTML += '<div style=\"display:flex;justify-content:space-between;font-size:9px;padding:2px 4px;color:#cbd5e1;\"><span>'+(flagMap[c.code]||'•')+' '+c.name+'</span><span style=\"color:var(--primary);\">'+c.count.toLocaleString()+' <span style=\"font-size:7px;color:var(--dim);\">('+pct+'%)</span></span></div>';
     });
-    document.getElementById('sat-list').innerHTML = listHTML;
+    if(satActive) document.getElementById('sat-list').innerHTML = listHTML;
     
     // 🚀【核心修复2】：拿到API后，直接解析出卫星轨道模型，无缝塞入现有渲染器！
     if(tleData.sats && tleData.sats.length > 0 && satActive) {
@@ -702,14 +717,19 @@ async function openSatMap(){
 
 function renderSatGlobe(){
   const ct=document.getElementById('sat-globe'); ct.innerHTML=''; const W=ct.clientWidth||400, H=ct.clientHeight||400;
+  let disposed=false;
   const sc=new THREE.Scene(), cam=new THREE.PerspectiveCamera(45,W/H,.1,100); cam.position.set(0,.5,3.5);
   const rn=new THREE.WebGLRenderer({antialias:true,alpha:true}); rn.setSize(W,H); ct.appendChild(rn.domElement);
+  satRn=rn; satCam=cam;
 
   const earth=new THREE.Mesh(
     new THREE.SphereGeometry(0.85,64,64),
     new THREE.MeshPhongMaterial({color:0x2244aa, specular:0x112244, shininess:15})
   ); sc.add(earth);
-  texLoader.load(TX.earth, tex => { tex.encoding = THREE.sRGBEncoding; earth.material.map = tex; earth.material.color.set(0xffffff); earth.material.needsUpdate = true; });
+  texLoader.load(TX.earth, tex => {
+    if(disposed){ tex.dispose(); return; }
+    tex.encoding = THREE.sRGBEncoding; earth.material.map = tex; earth.material.color.set(0xffffff); earth.material.needsUpdate = true;
+  });
   sc.add(new THREE.AmbientLight(0x334466,2.8)); const sl=new THREE.DirectionalLight(0xffffff,2.2); sl.position.set(5,1,3); sc.add(sl);
 
   const glowGeo = new THREE.SphereGeometry(0.90, 48, 48);
@@ -803,6 +823,21 @@ function renderSatGlobe(){
   animId = requestAnimationFrame(anim);
   return function(){
     cancelAnimationFrame(animId);
+    disposed=true;
+    satRn=null; satCam=null;
+    // 释放 GPU 资源：sc.clear() 只移除对象，不 dispose 几何体/材质/贴图。
+    // 反复「部署→关闭」卫星网会持续泄漏显存，必须显式遍历释放。
+    sc.traverse(o=>{
+      if(o.geometry) o.geometry.dispose();
+      const m=o.material;
+      if(m){
+        (Array.isArray(m)?m:[m]).forEach(mat=>{
+          if(mat.map) mat.map.dispose();
+          if(mat.uniforms) for(const k in mat.uniforms){ const u=mat.uniforms[k].value; if(u&&u.isTexture) u.dispose(); }
+          mat.dispose();
+        });
+      }
+    });
     rn.dispose();
     sc.clear();
   };
@@ -818,19 +853,13 @@ function closeSatMap(){
 // ──────────────────────────────────────────────────────
 //  主渲染循环
 // ──────────────────────────────────────────────────────
+const _tmpLabel = new THREE.Vector3(), _tmpCam = new THREE.Vector3(), _tmpLook = new THREE.Vector3(), _tmpProj = new THREE.Vector3();
 (function anim(){
   requestAnimationFrame(anim);
   ssObjs[0].mesh.rotation.y += P[0].rot * speed;
 
   // 更新 GPU shader uniforms
   const now = performance.now() * 0.001;
-  sunLightPos.copy(ssObjs[0].mesh.position);
-  ssObjs.forEach(o => {
-    if (o.uniforms) {
-      o.uniforms.uTime.value = now;
-      o.uniforms.uLightPos.value.copy(sunLightPos);
-    }
-  });
   if (ssObjs._ringMat) ssObjs._ringMat.uniforms.uTime.value = now;
 
   // ☄️ 小行星帶緩慢旋轉
@@ -894,7 +923,7 @@ function closeSatMap(){
     const lbl = planetLabels[i];
     if (lbl) {
       // 🚀【3D空间头顶对齐】：动态获取当前星球网格网格半径，将文字定位点精准提升至星球上空，绝不冲突
-      const labelPos = o.mesh.position.clone();
+      const labelPos = _tmpLabel.copy(o.mesh.position);
       const radius = P[i] ? P[i].s : 1.0;
       labelPos.y += radius * 1.3 + 0.15; // 根据每颗球身大小，按比例向上推高
       
@@ -935,8 +964,8 @@ function closeSatMap(){
     const targetZ = tz + Math.sin(camAngle) * lockDist;
     const targetY = ty + tZoom * 0.42; 
 
-    ssCam.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.04); 
-    window._camTarget.lerp(new THREE.Vector3(tx, ty, tz), 0.05); 
+    ssCam.position.lerp(_tmpCam.set(targetX, targetY, targetZ), 0.04); 
+    window._camTarget.lerp(_tmpLook.set(tx, ty, tz), 0.05); 
     ssCam.lookAt(window._camTarget);
   } else {
     // 🌌 2. 手势控制模式
@@ -952,13 +981,13 @@ function closeSatMap(){
       const targetZ = tz + Math.sin(camAngle) * lockDist;
       const targetY = ty + lockDist * 0.25; 
       
-      ssCam.position.lerp(new THREE.Vector3(targetX, targetY, targetZ), 0.08);
-      window._camTarget.lerp(new THREE.Vector3(tx, ty, tz), 0.1); 
+      ssCam.position.lerp(_tmpCam.set(targetX, targetY, targetZ), 0.08);
+      window._camTarget.lerp(_tmpLook.set(tx, ty, tz), 0.1); 
       ssCam.lookAt(window._camTarget);
 
       const card = document.getElementById('planet-card');
       if (card && window._cardActive) {
-        const wp = new THREE.Vector3(tx, ty, tz).project(ssCam);
+        const wp = _tmpProj.set(tx, ty, tz).project(ssCam);
         if (wp.z > 1) {
           card.style.left = '-9999px'; // 镜头摇摄时安全隐藏
         } else {
@@ -983,8 +1012,8 @@ function closeSatMap(){
       const targetX = tx + Math.cos(baseAngle + ssRY) * ssZoom;
       const targetZ = tz + Math.sin(baseAngle + ssRY) * ssZoom;
       
-      ssCam.position.lerp(new THREE.Vector3(targetX, pitchY, targetZ), 0.05); 
-      window._camTarget.lerp(new THREE.Vector3(tx, ty, tz), 0.05); 
+      ssCam.position.lerp(_tmpCam.set(targetX, pitchY, targetZ), 0.05); 
+      window._camTarget.lerp(_tmpLook.set(tx, ty, tz), 0.05); 
       ssCam.lookAt(window._camTarget);
     }
   }
@@ -1015,21 +1044,27 @@ function closeSatMap(){
     }
   }
 
-  ssRn.render(ssS,ssCam);
+  if(!satActive) ssRn.render(ssS,ssCam);
 })();
 
-window.addEventListener('resize',()=>{ssCam.aspect=innerWidth/innerHeight;ssCam.updateProjectionMatrix();ssRn.setSize(innerWidth,innerHeight);handCanvas.width=innerWidth;handCanvas.height=innerHeight;});
+window.addEventListener('resize',()=>{
+  ssCam.aspect=innerWidth/innerHeight;ssCam.updateProjectionMatrix();ssRn.setSize(innerWidth,innerHeight);
+  if(satRn && satCam){ const ct=document.getElementById('sat-globe'); const w=ct.clientWidth||innerWidth, h=ct.clientHeight||innerHeight; satCam.aspect=w/h; satCam.updateProjectionMatrix(); satRn.setSize(w,h); }
+  handCanvas.width=innerWidth;handCanvas.height=innerHeight;
+});
 document.getElementById('btn-cam').onclick=initCam;
 document.getElementById('btn-rst').onclick=()=>{focusPlanet(0);ssRY=0;ssZoom=16;window._camTarget.set(0,0,0)};
 document.getElementById('speed-slider').oninput=e=>{speed=parseFloat(e.target.value);document.getElementById('speed-label').textContent=speed.toFixed(1)+'x'};
 // ⌨️ 键盤快捷鍵
 document.addEventListener('keydown', e => {
   if (satActive) return;
+  // 输入控件聚焦时不劫持方向键，保留滑块的原生键盘操作
+  if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   if (e.key === 'ArrowLeft')  { e.preventDefault(); focusPlanet((focus-1+P.length)%P.length); }
   if (e.key === 'ArrowRight') { e.preventDefault(); focusPlanet((focus+1)%P.length); }
   if (e.key === '+' || e.key === '=') { speed = Math.min(5, speed + 0.2); document.getElementById('speed-label').textContent = speed.toFixed(1)+'x'; }
   if (e.key === '-') { speed = Math.max(0.1, speed - 0.2); document.getElementById('speed-label').textContent = speed.toFixed(1)+'x'; }
-  if (e.key === '0') { focusPlanet(4); }  // 地球
+  if (e.key === '0') { focusPlanet(3); }  // 地球
   if (e.key === '9') { focusPlanet(5); }  // 木星
   if (e.key === '8') { focusPlanet(6); }  // 土星
 });

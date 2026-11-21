@@ -1,74 +1,186 @@
+/* ═══════════════════════════════════════════════════════════
+   OrbitEye · Solar Atlas — 视觉外壳
+   动皮不动骨：仅外观层。JS 注入样式依赖 --title/--primary/
+   --good/--warn/--border/--dim/--label 七个变量，改根即全跟随。
+   ═══════════════════════════════════════════════════════════ */
 :root{
-  --bg:#010615;--panel:rgba(2,10,28,.96);--border:rgba(56,189,248,.10);
-  --primary:#38bdf8;--good:#34d399;--warn:#fbbf24;--danger:#f87171;--purple:#c084fc;
-  --label:rgba(56,189,248,.65);--dim:rgba(56,189,248,.25);
-  --font:'Inter','Microsoft YaHei',sans-serif;
+  --bg:#070b12; --panel:rgba(12,18,28,.82); --panel-in:rgba(8,13,22,.9);
+  --border:rgba(150,180,210,.12); --border-strong:rgba(108,182,232,.26);
+  --primary:#6cb6e8; --accent:#9bd7f5;
+  --good:#4fd1a5; --warn:#e6b45c; --danger:#e87878; --purple:#a99be8;
+  --label:rgba(200,216,232,.82); --dim:rgba(150,172,194,.72);
+  --text:#dbe4ee;
+  --font:'IBM Plex Sans','Noto Sans SC','Microsoft YaHei',sans-serif;
   --mono:'Share Tech Mono','Consolas',monospace;
-  --title:'Orbitron','Microsoft YaHei',sans-serif;--radius:6px;
+  --display:'Chakra Petch','IBM Plex Sans',sans-serif;
+  --title:var(--display); --radius:12px;
+  --ease:cubic-bezier(.22,1,.36,1);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:#e2e8f0;font-family:var(--font);overflow:hidden;height:100vh;font-weight:300;}
+html,body{height:100%;color-scheme:dark;}
+button,select,a{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-weight:400;overflow:hidden;height:100dvh;}
+/* 极淡的扫描纹理，替代满屏噪点 */
 body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(56,189,248,.0015) 2px,rgba(56,189,248,.0015) 4px);}
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(108,182,232,.012) 3px,rgba(108,182,232,.012) 4px);}
+/* 边缘暗角，把注意力收拢到中心天体 */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
+  background:radial-gradient(ellipse at 50% 45%,transparent 42%,rgba(3,6,12,.42) 100%);}
 
-/* UI Panels */
-.pnl{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
-  box-shadow:0 4px 32px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.015);backdrop-filter:blur(12px);position:relative;}
-.corner{position:relative}.corner::before,.corner::after{content:'';position:absolute;width:10px;height:10px;pointer-events:none;z-index:5;border-color:rgba(56,189,248,.3);}
-.corner::before{left:-1px;top:-1px;border-left:2px solid;border-top:2px solid;}
-.corner::after{right:-1px;bottom:-1px;border-right:2px solid;border-bottom:2px solid;}
+/* ── Double-Bezel 嵌套面板 ───────────────────────────── */
+.pnl{background:var(--border);border:0;border-radius:var(--radius);padding:1px;
+  box-shadow:0 18px 48px rgba(0,0,0,.42);position:relative;backdrop-filter:blur(16px);}
+.pnl>*{border-radius:calc(var(--radius) - 1px);}
+/* 保留 .corner 钩子（JS / 结构引用）但去掉四角括号，改细腻定位线 */
+.corner::before,.corner::after{content:'';position:absolute;width:14px;height:14px;pointer-events:none;z-index:5;opacity:.5;}
+.corner::before{left:0;top:0;border-left:1px solid var(--border-strong);border-top:1px solid var(--border-strong);border-radius:var(--radius) 0 0 0;}
+.corner::after{right:0;bottom:0;border-right:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);border-radius:0 0 var(--radius) 0;}
 
-/* HUD Top */
-#hud-top{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:10;
-  background:rgba(2,10,28,.94);border:1px solid rgba(56,189,248,.22);padding:8px 20px;
-  font-size:10px;letter-spacing:2px;font-family:var(--mono);border-radius:20px;backdrop-filter:blur(8px);
-  color:#e2e8f0;text-shadow:0 0 8px rgba(56,189,248,.15);}
+/* ── HUD 指令条：文字编号，替代 emoji 串 ─────────────── */
+#hud-top{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:10;
+  display:flex;align-items:center;gap:0;max-width:calc(100vw - 40px);
+  background:var(--panel);border:1px solid var(--border);padding:5px 8px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.5px;border-radius:9px;
+  backdrop-filter:blur(18px);color:var(--label);white-space:nowrap;overflow-x:auto;
+  scrollbar-width:none;box-shadow:0 12px 36px rgba(0,0,0,.34);}
+#hud-top::-webkit-scrollbar{display:none;}
+#hud-top b{font-weight:400;color:var(--primary);opacity:.85;margin-right:4px;}
+#hud-top em{font-style:normal;color:var(--text);padding:0 11px;}
+#hud-top em+em{border-left:1px solid var(--border);}
+#hud-top .brand{font-family:var(--display);font-weight:600;letter-spacing:2px;color:var(--accent);padding:0 12px 0 6px;}
 
-/* Controls */
-#ctrl-panel{position:fixed;top:16px;left:16px;z-index:10;display:flex;flex-direction:column;gap:8px;}
-.ctrl-btn{padding:8px 14px;cursor:pointer;font-family:var(--title);font-size:9px;letter-spacing:2px;
-  border:1px solid rgba(56,189,248,.22);background:rgba(56,189,248,.04);color:#bae6fd;
-  border-radius:4px;transition:all .25s;text-align:center;text-decoration:none;}
-.ctrl-btn:hover{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.5);box-shadow:0 0 16px rgba(56,189,248,.15);color:#e0f2fe;}
+/* ── 控制区 ─────────────────────────────────────────── */
+#ctrl-panel{position:fixed;top:18px;left:18px;z-index:10;display:flex;flex-direction:column;gap:8px;}
+.ctrl-btn{position:relative;padding:9px 15px 9px 30px;cursor:pointer;font-family:var(--display);
+  font-size:11px;font-weight:500;letter-spacing:.5px;border:1px solid var(--border);
+  background:var(--panel);color:var(--label);border-radius:8px;text-align:left;
+  text-decoration:none;backdrop-filter:blur(14px);
+  transition:background .35s var(--ease),border-color .35s var(--ease),transform .25s var(--ease),color .35s var(--ease);}
+/* 内嵌圆点图标，替代 emoji */
+.ctrl-btn::before{content:'';position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  width:6px;height:6px;border-radius:50%;border:1.5px solid var(--dim);transition:border-color .35s var(--ease),background .35s var(--ease),box-shadow .35s var(--ease);}
+.ctrl-btn:hover{background:rgba(108,182,232,.08);border-color:var(--border-strong);color:var(--accent);transform:translateY(-1px);}
+.ctrl-btn:hover::before{border-color:var(--primary);background:var(--primary);box-shadow:0 0 0 3px rgba(108,182,232,.12);}
+.ctrl-btn:active{transform:translateY(0) scale(.98);}
+.ctrl-btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+#ctrl-panel .pnl-in{padding:10px 12px;background:var(--panel-in);}
+#ctrl-panel input[type=range]{accent-color:var(--primary);}
 
-/* Status Right */
-#status-panel{position:fixed;top:52px;right:16px;z-index:10;width:200px;}
-#status-panel .row{display:flex;justify-content:space-between;font-size:9px;padding:2px 0;font-family:var(--mono);}
-#status-panel .row .k{color:rgba(56,189,248,.5);}
-#status-panel .row .v{color:#bae6fd;font-weight:500;}
+/* ── 状态面板：数据表排版 ────────────────────────────── */
+#status-panel{position:fixed;top:56px;right:18px;z-index:10;width:210px;}
+#status-panel .pnl-in{padding:12px 14px;background:var(--panel-in);}
+#status-panel .hd{font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:1.5px;color:var(--dim);
+  border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;text-transform:uppercase;}
+#status-panel .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:10px;padding:5px 0;font-family:var(--mono);border-bottom:1px solid rgba(150,180,210,.05);}
+#status-panel .row:last-child{border-bottom:0;}
+#status-panel .row .k{color:var(--dim);letter-spacing:.5px;white-space:nowrap;}
+#status-panel .row .v{color:var(--text);font-weight:500;text-align:right;font-variant-numeric:tabular-nums;}
+#st-planet{color:var(--primary)!important;}
 
-/* Info Card */
-#planet-card{position:fixed;z-index:20;background:var(--panel);border:1px solid var(--border);
-  padding:24px 32px;font-size:14px;display:none;pointer-events:none;max-width:440px;
-  line-height:2.0;border-radius:var(--radius);box-shadow:0 24px 64px rgba(0,0,0,.9);color:#f1f5f9;
-  left:60px; top:120px;} 
-#planet-card.show{display:block;animation:fadeIn .35s ease;}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+/* ── 信息卡：去 glow，改为逐字揭示 + 数据表 ─────────── */
+#planet-card{position:fixed;z-index:20;background:var(--panel-in);border:1px solid var(--border-strong);
+  padding:0;font-size:14px;display:none;pointer-events:none;max-width:min(440px,calc(100vw - 48px));
+  line-height:1.85;border-radius:var(--radius);left:60px;top:120px;
+  box-shadow:0 26px 70px rgba(0,0,0,.6);backdrop-filter:blur(20px);overflow:hidden;}
+#planet-card.show{display:block;animation:cardReveal .5s var(--ease);}
+@keyframes cardReveal{from{opacity:0;transform:translateY(12px) scale(.985);clip-path:inset(0 0 100% 0)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+/* 覆盖 JS 行内 glow / 字号 / 字重 —— 行星色保留为强调，去掉霓虹阴影 */
+#planet-card>div:first-child{
+  font-family:var(--display)!important;font-weight:600!important;font-size:26px!important;
+  letter-spacing:.5px!important;text-shadow:none!important;line-height:1.25!important;
+  padding:20px 24px 14px!important;border-bottom:1px solid var(--border)!important;
+  animation:titleReveal .65s var(--ease) both!important;}
+@keyframes titleReveal{from{opacity:0;clip-path:inset(0 100% 0 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+/* 第二行起统一内边距与字色，弱化 shimmer 链路提示 */
+#planet-card>div:not(:first-child){padding:14px 24px!important;}
+#planet-card span[style*="shimmer"]{background:none!important;animation:none!important;font-family:var(--mono);font-size:11px;color:var(--dim)!important;letter-spacing:1px;}
+#planet-card div[style*="text-align:right"]{font-family:var(--mono)!important;font-size:9px!important;letter-spacing:1px!important;
+  color:var(--dim)!important;border-top:1px solid var(--border)!important;}
 
-/* Hover Zones & Alerts */
-#swipe-alert{position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);z-index:30;
-  background:rgba(2,10,28,.95);border:1px solid var(--primary);color:var(--primary);
-  padding:14px 28px;font-family:var(--title);font-size:13px;letter-spacing:4px;
-  opacity:0;pointer-events:none;transition:all .3s ease;border-radius:var(--radius);}
-#swipe-alert.show{opacity:1;}
-#hover-zone-left,#hover-zone-right{position:fixed;top:0;bottom:0;width:22%;z-index:8;pointer-events:none;
-  opacity:0;transition:opacity .25s ease;}
-#hover-zone-left{left:0;background:linear-gradient(90deg,rgba(56,189,248,.18),transparent);}
-#hover-zone-right{right:0;background:linear-gradient(270deg,rgba(56,189,248,.18),transparent);}
-#hover-zone-left.active,#hover-zone-right.active{opacity:.5;animation:hoverPulse .8s ease-in-out infinite;}
-#hover-zone-left.trigger,#hover-zone-right.trigger{opacity:.95;background:rgba(52,211,153,.28);transition:opacity .1s ease;}
-@keyframes hoverPulse{0%,100%{opacity:.3}50%{opacity:.6}}
+/* ── 手势警报 ───────────────────────────────────────── */
+#swipe-alert{position:fixed;top:34%;left:50%;transform:translate(-50%,-50%);z-index:30;
+  background:var(--panel-in);border:1px solid var(--border-strong);color:var(--accent);
+  padding:13px 26px;font-family:var(--display);font-size:12px;font-weight:500;letter-spacing:3px;
+  opacity:0;pointer-events:none;transition:opacity .3s var(--ease),transform .3s var(--ease);
+  border-radius:9px;backdrop-filter:blur(16px);box-shadow:0 16px 44px rgba(0,0,0,.4);}
+#swipe-alert.show{opacity:1;transform:translate(-50%,-50%) scale(1.02);}
 
-/* Satellite Overlay */
-#sat-overlay{position:fixed;inset:0;z-index:100;background:rgba(1,6,21,.97);display:none;flex-direction:column;backdrop-filter:blur(20px);}
-#sat-overlay .header{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:1px solid var(--border);}
-#sat-overlay .title{font-family:var(--title);font-size:14px;letter-spacing:4px;color:var(--primary);}
-#sat-globe{flex:1;position:relative;}
-#sat-list{width:280px;overflow-y:auto;padding:14px;border-left:1px solid var(--border);font-family:var(--mono);font-size:9px;}
+/* ── 边缘悬停区（功能需要，视觉弱化） ───────────────── */
+#hover-zone-left,#hover-zone-right{position:fixed;top:0;bottom:0;width:25%;z-index:8;pointer-events:none;
+  opacity:0;transition:opacity .3s var(--ease);}
+#hover-zone-left{left:0;background:linear-gradient(90deg,rgba(108,182,232,.14),transparent);}
+#hover-zone-right{right:0;background:linear-gradient(270deg,rgba(108,182,232,.14),transparent);}
+#hover-zone-left.active,#hover-zone-right.active{opacity:.45;animation:hoverPulse 1.4s var(--ease) infinite;}
+#hover-zone-left.trigger,#hover-zone-right.trigger{opacity:.8;background:linear-gradient(90deg,rgba(79,209,165,.2),transparent);}
+#hover-zone-right.trigger{background:linear-gradient(270deg,rgba(79,209,165,.2),transparent);}
+@keyframes hoverPulse{0%,100%{opacity:.28}50%{opacity:.5}}
 
-/* Canvas */
+/* ── 卫星分布图：分栏 + 扫描线过场 ──────────────────── */
+/* JS 用 style.display 切换 flex/none，动画直接挂元素即可（display 变化时重播） */
+#sat-overlay{position:fixed;inset:0;z-index:100;background:rgba(6,10,18,.96);display:none;flex-direction:column;backdrop-filter:blur(24px);}
+#sat-overlay[style*="display: flex"]{animation:satIn .55s var(--ease);}
+@keyframes satIn{from{opacity:0;clip-path:inset(0 0 100% 0)}to{opacity:1;clip-path:inset(0 0 0 0)}}
+/* 扫过的一道细线 */
+#sat-overlay::before{content:'';position:absolute;left:0;right:0;top:0;height:1px;z-index:3;pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--primary),transparent);opacity:0;}
+#sat-overlay[style*="display: flex"]::before{animation:satScan .8s var(--ease);}
+@keyframes satScan{0%{top:0;opacity:0}20%{opacity:.9}100%{top:100%;opacity:0}}
+#sat-overlay .header{display:flex;justify-content:space-between;align-items:center;
+  padding:16px 24px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.015);}
+#sat-overlay .title{font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:2px;color:var(--text);}
+#sat-overlay .title small{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:2px;color:var(--dim);margin-left:12px;}
+#sat-overlay .ctrl-btn{padding:8px 16px;}
+#sat-overlay .ctrl-btn::before{display:none;}
+#sat-overlay>div:last-child{flex:1;display:flex;min-height:0;}
+#sat-globe{flex:1;position:relative;min-width:0;}
+#sat-list{width:300px;flex-shrink:0;overflow-y:auto;padding:18px 16px;border-left:1px solid var(--border);
+  font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--dim);background:rgba(0,0,0,.18);}
+#sat-list::-webkit-scrollbar{width:5px}#sat-list::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+#sat-list b{font-weight:400;color:var(--primary);}
+
+/* ── Canvas 层级 ─────────────────────────────────────── */
 canvas{position:fixed;inset:0;z-index:0;}
 #sat-globe canvas{position:absolute!important;inset:auto!important;z-index:1!important;width:100%!important;height:100%!important;}
 #hand-overlay{position:fixed;inset:0;z-index:5;pointer-events:none;display:none;}
 #webcam-pip{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;}
+
+/* ── 窄屏适配 ────────────────────────────────────────── */
+@media(max-width:760px){
+  #hud-top{top:10px;left:10px;right:10px;transform:none;max-width:none;font-size:9px;}
+  #hud-top em{padding:0 6px;}
+  #hud-top b{margin-right:2px;}
+  #hud-top .brand{padding:0 7px 0 3px;letter-spacing:1px;}
+  #ctrl-panel{top:auto;bottom:12px;left:10px;flex-direction:row;flex-wrap:wrap;max-width:calc(100vw - 20px);gap:6px;}
+  #ctrl-panel .ctrl-btn{font-size:10px;padding:8px 11px 8px 24px;}
+  #ctrl-panel .ctrl-btn::before{left:11px;}
+  #ctrl-panel .pnl{order:-1;width:100%;padding:8px 12px;}
+  #status-panel{top:56px;right:10px;width:168px;}
+  #status-panel .pnl-in{padding:10px;}
+  #status-panel .row{font-size:9px;}
+  #planet-card{left:12px!important;top:auto!important;bottom:76px;max-width:calc(100vw - 24px);}
+  #sat-overlay>div:last-child{flex-direction:column;}
+  #sat-globe{flex:1;min-height:45%;}
+  #sat-list{width:100%;max-height:38%;border-left:0;border-top:1px solid var(--border);}
+}
+
+/* ═══════════════════════════════════════════════════
+   REFINEMENT PASS — 观感精修（动皮不动骨，仅外观层）
+   ═══════════════════════════════════════════════════ */
+/* [电影感] 嵌套面板：冷调带色阴影 + 顶缘微高光，像精密仪器的玻璃托盘 */
+.pnl{box-shadow:0 1px 0 rgba(190,220,245,.055) inset,0 20px 54px rgba(3,9,20,.5);}
+/* [精致] HUD 指令条 / 警报 / 信息卡：统一内高光语言 */
+#hud-top,#swipe-alert{box-shadow:0 1px 0 rgba(190,220,245,.05) inset,0 14px 40px rgba(3,9,20,.44);}
+#planet-card{box-shadow:0 1px 0 rgba(190,220,245,.06) inset,0 28px 76px rgba(2,7,16,.66);}
+/* [舒适度] 状态面板数据行：行距放松，数字更透气 */
+#status-panel .row{padding:6px 0;}
+#status-panel .hd{letter-spacing:1.8px;}
+/* [舒适度] 卫星清单行高与字距微调，长时间阅读不累 */
+#sat-list{line-height:1.95;}
+/* [精致] 面板编号定位线更清晰一点 */
+.corner::before,.corner::after{opacity:.62;}
+/* [电影感] 边缘暗角略收，中心天体更聚焦、四周不死黑 */
+body::before{background:radial-gradient(ellipse at 50% 45%,transparent 46%,rgba(3,6,12,.36) 100%);}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+}

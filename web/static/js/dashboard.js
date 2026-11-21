@@ -32,15 +32,149 @@ function showContent(id) {
 const le = document.getElementById(id+'-loading');  if (le) le.classList.add('hidden');
 const ce = document.getElementById(id+'-content');  if (ce) ce.classList.remove('hidden');}
 
+// ── 数据来源统一标注 ─────────────────────────────
+// 后端每个端点都返回 _source：live / demo / local / open-meteo / celestrak / NASA DONKI …
+// 统一映射成四档：实时(live) · 归档(archive) · 演示(demo) · 推算(local)，写进面板标题栏的 src-tag
+const SRC_KIND = {
+  'live':'live', 'open-meteo':'live', 'celestrak':'live', 'NASA DONKI':'live', 'Solar-System-OpenData-API':'live',
+  'archive':'archive',
+  'demo':'demo', 'local_simulated_fallback':'demo',
+  'local':'local', 'local-cache':'local', 'static':'local', 'celestrak-cache':'local'
+};
+const SRC_TXT = { live:'实时', archive:'归档', demo:'演示', local:'推算' };
+function markSource(panelId, source){
+  const panel = document.getElementById(panelId); if(!panel) return;
+  const tag = panel.querySelector('.src-tag'); if(!tag) return;
+  const kind = SRC_KIND[source] || 'local';
+  // 保留数据源名称文本，仅移除旧的标注再写入（避免重复刷新叠加）
+  tag.querySelectorAll('.origin').forEach(n=>n.remove());
+  const dot = document.createElement('i');
+  dot.className = 'origin origin--'+kind;
+  dot.textContent = SRC_TXT[kind];
+  dot.title = '数据来源：'+(source||'未知');
+  tag.appendChild(dot);
+}
+// 合并型面板：取所有子来源里「最弱」的一档标注（demo > local > archive > live）
+function markSourceWorst(panelId, sources){
+  const order = { live:0, archive:1, local:2, demo:3 };
+  let worst = 'live';
+  sources.forEach(s=>{ const k = SRC_KIND[s]||'local'; if((order[k]??2) > (order[worst]??0)) worst = k; });
+  markSource(panelId, SRC_KIND[worst] || 'local');
+}
+
+// demo 徽章按来源集合聚合；任一数据源恢复实时后自动撤销，避免单向常亮
+const demoFlags = new Map();
+function markDemo(key, isDemo){
+  demoFlags.set(key, !!isDemo);
+  const badge = document.getElementById('demo-badge');
+  if(badge) badge.style.display = [...demoFlags.values()].some(Boolean) ? 'block' : 'none';
+}
+
+// ── 微动效：数值滚动入场（仅首次；后续刷新直接赋值，避免抖动）──
+function countUp(el, target, suffix, decimals){
+  if(!el) return;
+  const num = parseFloat(target);
+  const suf = suffix||'';
+  const dec = decimals||0;
+  const rm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if(!isFinite(num) || rm || typeof window.anime!=='function'){ el.textContent = target+suf; return; }
+  if(el._cntDone){ el.textContent = target+suf; return; }
+  el._cntDone = true;
+  const state = { v: 0 };
+  window.anime({ targets: state, v: num, duration: 1100, easing:'easeOutCubic',
+    update: ()=>{ el.textContent = state.v.toFixed(dec)+suf; },
+    complete: ()=>{ el.textContent = num.toFixed(dec)+suf; } });
+}
+// ── 数据可视化：月面照度 6 周曲线（真实星历 forecast 数据）──
+function renderIllumChart(host, items){
+  if(!host || !Array.isArray(items) || !items.length) return;
+  const vals = items.map(e=>Math.max(0,Math.min(100,Number(e.illumination)||0)));
+  const W=300,H=42,PAD=3;
+  const x=i=> PAD + i*(W-2*PAD)/(Math.max(1,vals.length-1));
+  const y=v=> H-PAD - (v/100)*(H-2*PAD);
+  let line='M'+x(0).toFixed(1)+' '+y(vals[0]).toFixed(1);
+  vals.forEach((v,i)=>{ if(i===0)return; line+=' L'+x(i).toFixed(1)+' '+y(v).toFixed(1); });
+  const area=line+' L'+x(vals.length-1).toFixed(1)+' '+H+' L'+x(0).toFixed(1)+' '+H+' Z';
+  const dots=vals.map((v,i)=>'<circle class="ic-dot" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="1.8"/>').join('');
+  host.insertAdjacentHTML('beforeend',
+    '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true">'+
+    '<defs><linearGradient id="icGrad" x1="0" y1="0" x2="0" y2="1">'+
+    '<stop offset="0%" stop-color="#6cb6e8" stop-opacity=".45"/><stop offset="100%" stop-color="#6cb6e8" stop-opacity="0"/>'+
+    '</linearGradient></defs>'+
+    '<line class="ic-grid" x1="0" y1="'+(H/2)+'" x2="'+W+'" y2="'+(H/2)+'"/>'+
+    '<path class="ic-area" d="'+area+'"/>'+
+    '<path class="ic-line ic-draw" d="'+line+'"/>'+dots+'</svg>');
+}
+
 // ── Navigation ──────────────────────────────────
 let curPg = 0;
 const tabs = document.querySelectorAll('.nav-t');
 const pgs = document.querySelectorAll('.pg');
 const ind = document.getElementById('nav-ind');
-function goPg(n) {  if (n === curPg) return;  pgs[curPg].classList.remove('on');  pgs[n].classList.add('on');  tabs.forEach(t => t.classList.remove('on'));  tabs[n].classList.add('on');  ind.style.transform = 'translateY('+(72+n*46)+'px)';  
-// 导航指示器颜色随页面切换  
-const accentColors = ['#38bdf8', '#fbbf24', '#c084fc'];  ind.style.background = accentColors[n];  ind.style.boxShadow = '0 0 18px '+accentColors[n]+', 0 0 36px '+accentColors[n]+'55';  curPg = n;  if (n === 0 && window._resumeGlobe) setTimeout(()=>window._resumeGlobe(), 120);}tabs.forEach(t => t.addEventListener('click', () => goPg(+t.dataset.pg)));
-document.addEventListener('keydown', e => {  if (e.key==='1') goPg(0);  if (e.key==='2') goPg(1);  if (e.ctrlKey && e.key==='r') { e.preventDefault(); refreshAll(); }});
+function moveNavInd(n){
+  if(!ind || !tabs[n]) return;
+  const t = tabs[n];
+  ind.style.transform = 'translateY(' + (t.offsetTop + (t.offsetHeight - ind.offsetHeight) / 2) + 'px)';
+  ind.style.background = 'var(--primary)';
+  ind.style.boxShadow = '0 0 14px rgba(108,182,232,.35)';
+}
+function goPg(n){
+  if (n === curPg) return;
+  pgs[curPg].classList.remove('on');  pgs[n].classList.add('on');
+  tabs.forEach(t => t.classList.remove('on'));  tabs[n].classList.add('on');
+  moveNavInd(n);
+  curPg = n;
+  if (n === 0 && window._resumeGlobe) setTimeout(()=>window._resumeGlobe(), 120);
+}
+tabs.forEach(t => t.addEventListener('click', () => goPg(+t.dataset.pg)));
+moveNavInd(0);
+window.addEventListener('resize', () => moveNavInd(curPg));
+document.addEventListener('keydown', e => {
+  // 输入控件聚焦时不劫持按键（否则在下拉框选城市/行星按 1/2 会误切页）
+  const t = e.target;
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (e.key === '1') goPg(0);
+    if (e.key === '2') goPg(1);
+  }
+  // Ctrl/Cmd+R 交还浏览器原生刷新，不再劫持成数据刷新（用户预期是刷新整页）
+});
+
+// ── Workspace 分区切换：次要数据按主题收纳 ───────────────
+(function initWorkspace(){
+  const bar = document.querySelector('.ws-tabs');
+  if (!bar) return;
+  const tabs = Array.from(bar.querySelectorAll('.ws-tab'));
+  const panes = Array.from(document.querySelectorAll('.ws-pane'));
+  const ind = bar.querySelector('.ws-ind');
+  function moveInd(tab){
+    if (!ind) return;
+    ind.style.width = tab.offsetWidth + 'px';
+    ind.style.transform = 'translateX(' + tab.offsetLeft + 'px)';
+  }
+  function activate(key, tab){
+    tabs.forEach(t => { const on = t === tab; t.classList.toggle('on', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); });
+    panes.forEach(p => p.classList.toggle('on', p.dataset.ws === key));
+    moveInd(tab);
+    // 分区切换后重算内部 3D / 图表尺寸（globe 常驻焦点区，此处主要是保险）
+    if (window._resumeGlobe) setTimeout(() => window._resumeGlobe(), 60);
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => activate(t.dataset.ws, t));
+    t.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const step = e.key === 'ArrowRight' ? 1 : -1;
+      const next = tabs[(i + step + tabs.length) % tabs.length];
+      activate(next.dataset.ws, next);
+      next.focus();
+    });
+  });
+  // 初始定位指示条：等字体与布局就绪后再量，避免宽度抖动
+  function place(){ const on = tabs.find(t => t.classList.contains('on')) || tabs[0]; if (on) moveInd(on); }
+  if (document.readyState === 'complete') place(); else window.addEventListener('load', place);
+  window.addEventListener('resize', () => { const on = tabs.find(t => t.classList.contains('on')); if (on) moveInd(on); });
+})();
 
 // ── Data fetching (copy reference pattern exactly) ──
 async function fetchISS() {  try {    
@@ -55,30 +189,30 @@ document.getElementById('mo-link').style.cssText = 'color:#f87171;font-weight:bo
 document.getElementById('mo-link').style.cssText = 'color:#7dd3fc;font-weight:normal';      }    }    if (d.pass_predictions?.length) {      
 const n = d.pass_predictions[0];
 document.getElementById('iss-pass').innerHTML = 'NEXT PASS: <span class="w">'+escapeHTML(n.start_in_minutes)+' min</span> ('+escapeHTML(n.duration_minutes)+' min)';
-document.getElementById('iss-pass').classList.remove('hidden');    }    if (d._source==='demo') {      document.getElementById('demo-badge').style.display='block';
-document.getElementById('bt-demo').style.display='inline';    }    document.getElementById('iss-tag').textContent = d._source==='demo'?'演示':'实时';    updGlobe(parseFloat(d.iss_position.latitude),parseFloat(d.iss_position.longitude),d.macao_link?.distance_km||0);    showContent('iss');  } catch(e) {    
+document.getElementById('iss-pass').classList.remove('hidden');    }    markDemo('iss', SRC_KIND[d._source]==='demo');    markSource('iss-panel', d._source);
+markSource('globe-cell', d._source);    updGlobe(parseFloat(d.iss_position.latitude),parseFloat(d.iss_position.longitude),d.macao_link?.distance_km||0);    showContent('iss');  } catch(e) {    
 const ce = document.getElementById('iss-content');    if (ce && ce.classList.contains('hidden')) showError('iss','TELEMETRY LOST');  }}
 async function fetchSpaceBody() {  try {    
-const le = document.getElementById('space-loading');    le.innerHTML = 'TUNING...'; le.classList.add('shimmer'); le.classList.remove('hidden');
+const le = document.getElementById('space-loading');    le.innerHTML = 'TUNING…'; le.classList.add('shimmer'); le.classList.remove('hidden');
 document.getElementById('space-content').classList.add('hidden');
 const bt = document.getElementById('planet-select').value;
 const res = await fetch(API_URL+'/space-body?type='+bt);
 const d = await res.json();    if (d.imageUrl) {      document.getElementById('space-img').src = d.imageUrl;
 document.getElementById('space-date').innerText = d.date||'--';
-document.getElementById('space-cap').innerText = d.caption||'--';      showContent('space');    } else { showError('space','NO TEXTURE'); }  } catch(e) { showError('space','LINK EXPIRED'); }}
+document.getElementById('space-cap').innerText = d.caption||'--';      markSource('space-panel', d._source);      showContent('space');    } else { showError('space','NO TEXTURE'); }  } catch(e) { showError('space','LINK EXPIRED'); }}
 async function fetchWeather() {  try {    
-const le = document.getElementById('weather-loading');    le.innerHTML = 'SYNCING...'; le.classList.add('shimmer'); le.classList.remove('hidden');
+const le = document.getElementById('weather-loading');    le.innerHTML = 'SYNCING…'; le.classList.add('shimmer'); le.classList.remove('hidden');
 document.getElementById('weather-content').classList.add('hidden');
 const ct = document.getElementById('city-select').value;
 const res = await fetch(API_URL+'/weather?city='+encodeURIComponent(ct));
 const d = await res.json();
 document.getElementById('w-status').innerText = d.weather||'--';
-document.getElementById('w-temp').innerText = d.temp||'--';
+countUp(document.getElementById('w-temp'), d.temp!==undefined?d.temp:'--', '', 0);
 document.getElementById('w-aqi').innerText = d.aqi||'--';
 document.getElementById('w-aqiname').innerText = '['+(d.aqi_name||'N/A')+']';
 document.getElementById('w-wind').innerText = d.wind_dir?d.wind_dir+' '+d.wind_power+'级':'--';
 document.getElementById('w-humid').innerText = d.humidity||'--';
-const windBar = document.getElementById('w-wind-bar'); if (windBar) windBar.style.width = Math.min(100,Math.max(8,((parseInt(d.wind_power)||0)/12*100)))+'%';    if (d._source==='demo') document.getElementById('demo-badge').style.display='block';    showContent('weather');  } catch(e) { showError('weather','OFFLINE'); }}
+const windBar = document.getElementById('w-wind-bar'); if (windBar) windBar.style.width = Math.min(100,Math.max(8,((parseInt(d.wind_power)||0)/12*100)))+'%';    markDemo('weather', SRC_KIND[d._source]==='demo');    markSource('weather-panel', d._source);    showContent('weather');  } catch(e) { showError('weather','OFFLINE'); }}
 
 // ── 各 API 拉取 ───────────────────────────────────────
 async function fetchAPOD() {  try {    
@@ -86,24 +220,26 @@ const res = await fetch(API_URL+'/apod');
 const d = await res.json();
 document.getElementById('apod-title').innerText = d.title||'--';
 document.getElementById('apod-expl').innerText = d.explanation||'--';
-const img = document.getElementById('apod-img');    img.src = d.imageUrl||'';    showContent('apod');  } catch(e) { showError('apod','APOD LOST'); }}
+const img = document.getElementById('apod-img');    img.src = d.imageUrl||'';    markSource('apod-panel', d._source);    showContent('apod');  } catch(e) { showError('apod','APOD LOST'); }}
 // [合并] 太空威胁: 太阳风暴 + 近地小行星
 async function fetchThreats() {
   const le = document.getElementById("threat-loading");
   le.classList.remove("hidden"); le.classList.add("shimmer");
   document.getElementById("threat-content").classList.add("hidden");
-  let ok = false;
+  let ok = false; const threatSources = [];
   try {
     const r = await fetch(API_URL+"/solar-storm");
     const d = await r.json();
     document.getElementById("st-note-short").innerText = (d.note||"--").substring(0,80);
     document.getElementById("st-ins").innerText = d.instruments||"--";
     if (d.storm_active) { triggerStormAlert(true); } else { triggerStormAlert(false); }
+    if (d._source) threatSources.push(d._source);
     ok = true;
   } catch(e) {}
   try {
     const r = await fetch(API_URL+"/neo");
     const d = await r.json();
+    if (d._source) threatSources.push(d._source);
     const list = document.getElementById("neo-list"); list.innerHTML = "";
     const haz = (d.objects||[]).filter(o=>o.hazardous).length;
     const alert = document.getElementById("neo-alert");
@@ -114,51 +250,53 @@ async function fetchThreats() {
     });
     ok = true;
   } catch(e) {}
-  if (ok) showContent("threat"); else showError("threat","OFFLINE");
+  if (ok) { if (threatSources.length) markSourceWorst('threat-panel', threatSources); showContent("threat"); } else showError("threat","OFFLINE");
 }
 async function fetchMarsWeather() {  try {
 	const res = await fetch(API_URL+'/mars-weather');
 	const d = await res.json();
-	const list = document.getElementById('mars-sol-list');    list.innerHTML = '<div class="text-[10px] text-gray-500 mb-1">'+escapeHTML(d.station)+'</div>';    (d.sols||[]).forEach(s=>{      const windStr = (s.wind_mps != null) ? escapeHTML(s.wind_mps)+'m/s' : (escapeHTML(s.atmo_opacity)||'--');      list.innerHTML+=`<div class="flex justify-between bg-black/30 p-1.5 border border-[var(--border)] rounded">        <span class="text-red-400">Sol ${escapeHTML(s.sol)}</span><span class="text-white">${s.max_temp_c!=null?escapeHTML(s.max_temp_c)+'°C':'--'}</span><span class="text-blue-400">${s.min_temp_c!=null?escapeHTML(s.min_temp_c)+'°C':'--'}</span>        <span class="text-gray-500">${windStr}</span><span class="text-gray-600 text-[8px]">${escapeHTML(s.season)||'--'}</span></div>`;    });    showContent('mars-weather');  } catch(e) { showError('mars-weather','MARS LOST'); }}
+	const list = document.getElementById('mars-sol-list');    list.innerHTML = '<div class="text-[10px] text-gray-500 mb-1">'+escapeHTML(d.station)+'</div>';    (d.sols||[]).forEach(s=>{      const windStr = (s.wind_mps != null) ? escapeHTML(s.wind_mps)+'m/s' : (escapeHTML(s.atmo_opacity)||'--');      list.innerHTML+=`<div class="flex justify-between bg-black/30 p-1.5 border border-[var(--border)] rounded">        <span class="text-red-400">Sol ${escapeHTML(s.sol)}</span><span class="text-white">${s.max_temp_c!=null?escapeHTML(s.max_temp_c)+'°C':'--'}</span><span class="text-blue-400">${s.min_temp_c!=null?escapeHTML(s.min_temp_c)+'°C':'--'}</span>        <span class="text-gray-500">${windStr}</span><span class="text-gray-600 text-[8px]">${escapeHTML(s.season)||'--'}</span></div>`;    });    markSource('mars-weather-panel', d._source);    showContent('mars-weather');  } catch(e) { showError('mars-weather','MARS LOST'); }}
 async function fetchNews() {  try {    
 const res = await fetch(API_URL+'/news');
 const d = await res.json();
-const list = document.getElementById('news-list');    list.innerHTML = '';    (d.articles||[]).slice(0,6).forEach(a=>{      list.innerHTML+=`<a href="${safeUrl(a.url)}" target="_blank" rel="noopener noreferrer" class="block bg-black/30 p-2 border border-[var(--border)] rounded hover:bg-black/50 transition">        <div class="text-[11px] text-white leading-tight">${escapeHTML(a.title)}</div>        <div class="flex justify-between mt-1 text-[8px]"><span class="text-sky-400">${escapeHTML(a.source)}</span><span class="text-gray-500">${escapeHTML(a.published)}</span></div></a>`;    });    showContent('news');  } catch(e) { showError('news','NEWS LOST'); }}
+const list = document.getElementById('news-list');    list.innerHTML = '';    (d.articles||[]).slice(0,6).forEach(a=>{      list.innerHTML+=`<a href="${safeUrl(a.url)}" target="_blank" rel="noopener noreferrer" class="block bg-black/30 p-2 border border-[var(--border)] rounded hover:bg-black/50 transition">        <div class="text-[11px] text-white leading-tight">${escapeHTML(a.title)}</div>        <div class="flex justify-between mt-1 text-[8px]"><span class="text-sky-400">${escapeHTML(a.source)}</span><span class="text-gray-500">${escapeHTML(a.published)}</span></div></a>`;    });    markSource('news-panel', d._source);    showContent('news');  } catch(e) { showError('news','NEWS LOST'); }}
 // [合并] 航天发射: SpaceX最新 + 即将发射
 async function fetchLaunches() {
   const le = document.getElementById("launch-loading");
   le.classList.remove("hidden"); le.classList.add("shimmer");
   document.getElementById("launch-content").classList.add("hidden");
-  let ok = false;
+  let ok = false; const launchSources = [];
   try {
     const r = await fetch(API_URL+"/spacex");
     const d = await r.json();
     document.getElementById("sx-name").innerText = d.name||"--";
     document.getElementById("sx-date").innerText = d.date||"--";
     document.getElementById("sx-details").innerText = d.details||"--";
-    if (d._source==="demo") { document.getElementById("demo-badge").style.display="block"; document.getElementById("bt-demo").style.display="inline"; }
+    markDemo('spacex', d._source==="demo");
+    if (d._source) launchSources.push(d._source);
     ok = true;
   } catch(e) {}
   try {
     const r = await fetch(API_URL+"/launches");
     const d = await r.json();
+    if (d._source) launchSources.push(d._source);
     const list = document.getElementById("launch-list"); list.innerHTML = "";
     (d.launches||[]).slice(0,6).forEach(l=>{
       list.innerHTML+="<div class=\"bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]\"><div class=\"text-white font-bold\">"+escapeHTML(l.name)+"</div><div class=\"flex justify-between mt-0.5\"><span class=\"text-green-400\">"+escapeHTML(l.rocket)+"</span><span class=\"text-gray-500\">"+escapeHTML(l.window_start)+"</span></div></div>";
     });
     ok = true;
   } catch(e) {}
-  if (ok) showContent("launch"); else showError("launch","OFFLINE");
+  if (ok) { if (launchSources.length) markSourceWorst('launch-panel', launchSources); showContent("launch"); } else showError("launch","OFFLINE");
 }
 async function fetchExoplanets() {  try {    
 const res = await fetch(API_URL+'/exoplanets');
 const d = await res.json();
 const list = document.getElementById('exo-list');    list.innerHTML = '';    (d.planets||[]).slice(0,8).forEach(p=>{      
-	list.innerHTML+=`<div class="flex justify-between items-center bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]"><span class="text-white">${escapeHTML(p.name||'--')}</span><span class="text-gray-500">${escapeHTML(p.distance_ly||'--')} ly</span><span class="text-indigo-400">${escapeHTML(p.mass_earth||'--')} M⊕</span><span class="text-amber-400">${escapeHTML(p.radius_earth||'--')} R⊕</span><span class="text-gray-600 text-[8px]">${escapeHTML(p.orbit_days||'--')} d</span></div>`;    });    showContent('exo');  } catch(e) { showError('exo','EXO LOST'); }}
+	list.innerHTML+=`<div class="flex justify-between items-center bg-black/30 p-1.5 border border-[var(--border)] rounded text-[10px]"><span class="text-white">${escapeHTML(p.name||'--')}</span><span class="text-gray-500">${escapeHTML(p.distance_ly||'--')} ly</span><span class="text-indigo-400">${escapeHTML(p.mass_earth||'--')} M⊕</span><span class="text-amber-400">${escapeHTML(p.radius_earth||'--')} R⊕</span><span class="text-gray-600 text-[8px]">${escapeHTML(p.orbit_days||'--')} d</span></div>`;    });    markSource('exo-panel', d._source);    showContent('exo');  } catch(e) { showError('exo','EXO LOST'); }}
 async function fetchISSPassDetail() { try {
     const res = await fetch(API_URL+'/iss-pass-detail');
     const d = await res.json();
-    document.getElementById('iss-pass-dist').innerText = d.current_distance_km+' km';
+    document.getElementById('iss-pass-dist').innerText = (d.current_distance_km != null ? d.current_distance_km + ' km' : '--');
     const list = document.getElementById('iss-pass-list'); list.innerHTML = '';
     (d.next_passes||[]).forEach(p => {
       list.innerHTML+=`<div class="flex justify-between items-center bg-black/30 p-1 border border-[var(--border)] rounded text-[9px]"><span class="text-sky-400">${escapeHTML(p.start_time_hkt||'')}</span><span class="text-white">${escapeHTML(p.duration_minutes)}min</span><span class="text-gray-500">${escapeHTML(p.min_distance_km)}km</span></div>`;
@@ -170,11 +308,12 @@ async function fetchObserving() {
   const le = document.getElementById("obs-loading");
   le.classList.remove("hidden"); le.classList.add("shimmer");
   document.getElementById("obs-content").classList.add("hidden");
-  let ok = false;
+  let ok = false; const obsSources = [];
   try {
     const r = await fetch(API_URL+"/observing");
     const d = await r.json();
-    document.getElementById("obs-score").innerText = d.observing_score+" / 100";
+    if (d._source) obsSources.push(d._source);
+    countUp(document.getElementById("obs-score"), d.observing_score, ' / 100', 0);
     const gb = document.getElementById("obs-grade-badge");
     gb.textContent = d.grade||"--";
     if ((d.grade||"").startsWith("A")) { gb.style.color="var(--good)"; gb.style.borderColor="rgba(52,211,153,.4)"; }
@@ -189,13 +328,17 @@ async function fetchObserving() {
   try {
     const r = await fetch(API_URL+"/moon-calendar");
     const d = await r.json();
+    if (d._source) obsSources.push(d._source);
     const list = document.getElementById("mooncal-forecast"); list.innerHTML = "";
+    const chartHost = document.getElementById('illum-chart');
+    if(chartHost) chartHost.querySelectorAll('svg').forEach(s=>s.remove());
     (d.forecast||[]).forEach(e => {
       list.innerHTML+="<div><span class=\"text-white\">"+escapeHTML((e.date||'').slice(5))+"</span><br><span class=\"text-gray-400 text-[8px]\">"+escapeHTML(e.phase)+"</span><br><span class=\"text-gray-500 text-[8px]\">"+escapeHTML(e.illumination)+"%</span></div>";
     });
+    renderIllumChart(chartHost, d.forecast||[]);
     ok = true;
   } catch(e) {}
-  if (ok) showContent("obs"); else showError("obs","OFFLINE");
+  if (ok) { if (obsSources.length) markSourceWorst('obs-panel', obsSources); showContent("obs"); } else showError("obs","OFFLINE");
 }
 async function fetchHealth() { try {
     const res = await fetch(API_URL+'/health');
@@ -231,14 +374,17 @@ const ctrl = new THREE.OrbitControls(cam,rn.domElement); ctrl.enableDamping=true
 const sg = new THREE.SphereGeometry(8,64,64);
 const sm = new THREE.ShaderMaterial({vertexShader:'varying vec3 p;void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'precision highp float;varying vec3 p;float r(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,45.5432)))*43758.5453);}void main(){float b=smoothstep(.997,1.,r(floor(p*200.)));gl_FragColor=vec4(vec3(.5,.8,1.)*b,b);}',side:THREE.BackSide,transparent:true});  sc.add(new THREE.Mesh(sg,sm));
 const eg = new THREE.SphereGeometry(1.4,64,64), em = new THREE.MeshPhongMaterial({color:0x113355});
-const earth = new THREE.Mesh(eg,em); sc.add(earth);  new THREE.TextureLoader().load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg', tex => {em.map=tex;em.color.set(0xffffff);em.needsUpdate=true;}, undefined, ()=>{});
+const earth = new THREE.Mesh(eg,em); sc.add(earth);  new THREE.TextureLoader().load('/static/textures/earth_atmos_2048.jpg', tex => {em.map=tex;em.color.set(0xffffff);em.needsUpdate=true;}, undefined, ()=>{});
 const gg = new THREE.SphereGeometry(1.43,64,64);
 const gm = new THREE.ShaderMaterial({vertexShader:'varying vec3 n;varying vec3 p;void main(){n=normalize(normalMatrix*normal);p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'precision highp float;varying vec3 n;varying vec3 p;void main(){float i=pow(.65-dot(n,vec3(0,0,1)),3.);gl_FragColor=vec4(0,.6,1.,1.)*i*.4;}',side:THREE.FrontSide,transparent:true,blending:THREE.AdditiveBlending});  sc.add(new THREE.Mesh(gg,gm));  sc.add(new THREE.AmbientLight(0x334466,2.5));
 const sl = new THREE.DirectionalLight(0xffffff,2); sl.position.set(5,1,3); sc.add(sl);
 const mg = new THREE.Group(); mg.position.copy(llv(22.1989,113.5491,1.41)); mg.add(new THREE.Mesh(new THREE.SphereGeometry(.03,16,16),new THREE.MeshBasicMaterial({color:0xf87171}))); sc.add(mg);
 const ig = new THREE.Group(); ig.add(new THREE.Mesh(new THREE.SphereGeometry(.024,12,12),new THREE.MeshBasicMaterial({color:0x34d399}))); sc.add(ig);
-const al = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x38bdf8,transparent:true,opacity:.8,depthTest:false,depthWrite:false})); al.renderOrder=3; sc.add(al);
-(function anim(){requestAnimationFrame(anim);if(curPg!==0)return;ctrl.update();rn.render(sc,cam);})();
+const al = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x38bdf8,transparent:true,opacity:.8,depthTest:true,depthWrite:false})); sc.add(al);
+(function anim(){
+  if(document.hidden || curPg!==0){ setTimeout(anim, 120); return; }
+  requestAnimationFrame(anim); ctrl.update(); rn.render(sc,cam);
+})();
 window._resumeGlobe = () => { if(!GR) return; const ct=document.getElementById('globe-ct'); const w=ct.clientWidth, h=ct.clientHeight; if(w<10||h<10){setTimeout(()=>window._resumeGlobe(),100);return;} GR.cam.aspect=w/h; GR.cam.updateProjectionMatrix(); GR.rn.setSize(w,h); };  
 window.addEventListener('resize',()=>{
 const w=ct.clientWidth,h=ct.clientHeight;cam.aspect=w/h;cam.updateProjectionMatrix();rn.setSize(w,h);});  GR = {sc,earth,mg,ig,al,cam,ctrl,rn};}
@@ -246,15 +392,38 @@ function updGlobe(lat,lon,dist) {  if(!GR) return;
 const {ig,al} = GR, ip = llv(lat,lon,1.43);  ig.position.copy(ip);
 const mp = llv(22.1989,113.5491,1.43), mid = new THREE.Vector3().addVectors(mp,ip).normalize().multiplyScalar(1.50);
 const cv = new THREE.QuadraticBezierCurve3(mp.clone(),mid,ip.clone());  al.geometry.dispose(); al.geometry = new THREE.BufferGeometry().setFromPoints(cv.getPoints(72));
-document.getElementById('gl-pos').textContent = lat.toFixed(2)+' deg, '+lon.toFixed(2)+' deg';
-document.getElementById('gl-dst').textContent = dist+' km';}
+const gp=document.getElementById('gl-pos');
+gp.textContent = lat.toFixed(2)+' deg, '+lon.toFixed(2)+' deg';
+countUp(document.getElementById('gl-dst'), dist, ' km', 0);
+updateGlobeHUD(lon);
+// 重启脉冲动画（remove→reflow→add），仅在非 reduced-motion 下生效
+if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+  gp.classList.remove('tel-pulse'); void gp.offsetWidth; gp.classList.add('tel-pulse');
+}}
+// ── 轨道测控 HUD 环：24 刻度静态生成 + ISS 经度驱动游标 ──
+function initGlobeHUD(){
+  const g = document.getElementById('gh-ticks'); if(!g) return;
+  let s='';
+  for(let i=0;i<24;i++){
+    const a=(i*15-90)*Math.PI/180, maj=(i%6===0), r1=maj?78:82, r2=88;
+    const x1=(100+r1*Math.cos(a)).toFixed(2), y1=(100+r1*Math.sin(a)).toFixed(2);
+    const x2=(100+r2*Math.cos(a)).toFixed(2), y2=(100+r2*Math.sin(a)).toFixed(2);
+    s+='<line class="gh-tick'+(maj?' maj':'')+'" x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'"/>';
+  }
+  g.innerHTML=s;
+}
+function updateGlobeHUD(lon){
+  const cell=document.getElementById('globe-cell'), cur=document.getElementById('gh-cursor');
+  if(!cell||!cur||!isFinite(lon)) return;
+  cell.style.setProperty('--iss-lon', lon.toFixed(2)+'deg');}
+initGlobeHUD();
 function toast(msg,cls){
 const t=document.getElementById('toast');t.textContent=msg;t.className=cls;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),3000);}
 
 // ── 操作教程切换 ──
 function toggleGuide(){  
 const pn=document.getElementById('guide-panel'),btn=document.getElementById('guide-toggle');  if(!pn||!btn)return;
-const showing=pn.classList.contains('show');  if(showing){pn.classList.remove('show');btn.classList.remove('on');btn.textContent='?';}  else{pn.classList.add('show');btn.classList.add('on');btn.textContent='×';}}
+const showing=pn.classList.contains('show');  if(showing){pn.classList.remove('show');btn.classList.remove('on');btn.textContent='?';btn.setAttribute('aria-expanded','false');}  else{pn.classList.add('show');btn.classList.add('on');btn.textContent='×';btn.setAttribute('aria-expanded','true');}}
 // ═══════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════
@@ -262,9 +431,11 @@ const showing=pn.classList.contains('show');  if(showing){pn.classList.remove('s
 // ═══════════════════════════════════════════════════
 let stormAlertAudio=null;
 function triggerStormAlert(active){
+  const panel = document.getElementById('threat-panel');
+  if(panel) panel.classList.toggle('emergency', !!active);
   if(active){
     if(!stormAlertAudio)initStormAudio();
-    if(stormAlertAudio&&stormAlertAudio.context.state==='suspended')stormAlertAudio.context.resume();
+    if(stormAlertAudio&&stormAlertAudio.context.state==='suspended') stormAlertAudio.context.resume().catch(()=>{});
     if(stormAlertAudio)stormAlertAudio.play();
   }else{
     if(stormAlertAudio)stormAlertAudio.stop();
@@ -287,85 +458,125 @@ window.addEventListener('DOMContentLoaded',()=>{
 
 //  启动画面 — animejs.com 风格：自描轨道 + 弹性逐字 + 鼠标互动  
 // ═══════════════════════════════════════════════════════  
-const startupCanvas=document.getElementById('startup-canvas');
-const startupCtx=startupCanvas?startupCanvas.getContext('2d'):null;
-const startupR=86, startupCirc=2*Math.PI*startupR;
-let startupProgress=0,targetProgress=0,startupRaf=null,startupStars=[];
-// ── 稀疏星点背景（无连线，保留深度但不杂乱）──
-function initStartupStars(){
-  if(!startupCtx)return;
-  startupCanvas.width=innerWidth;startupCanvas.height=innerHeight;
-  const n=Math.min(90,Math.floor(innerWidth*innerHeight/16000));
-  startupStars=[];
-  for(let i=0;i<n;i++)startupStars.push({x:Math.random()*startupCanvas.width,y:Math.random()*startupCanvas.height,
-    r:.6+Math.random()*1.4,vy:.05+Math.random()*.18,a:.15+Math.random()*.45});
-}
-function drawStartupStars(){
-  if(!startupCtx)return;
-  if(document.getElementById('loading-overlay').classList.contains('hidden')){startupRaf=null;return;}
-  const w=startupCanvas.width,h=startupCanvas.height;
-  startupCtx.clearRect(0,0,w,h);
-  for(const s of startupStars){
-    s.y-=s.vy; if(s.y<-4){s.y=h+4;s.x=Math.random()*w;}
-    startupCtx.beginPath();startupCtx.fillStyle='rgba(200,220,240,'+s.a+')';
-    startupCtx.arc(s.x,s.y,s.r,0,Math.PI*2);startupCtx.fill();
+// ── 启动层：DIN 真实字形轮廓 + 5 层对称偏移单线，左→右鱼贯描边 ──
+const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+(function initOrbitEyeStartupAnimation() {
+  const stage  = document.getElementById('oe-stage');
+  const overlay= document.getElementById('loading-overlay');
+  const svg    = document.getElementById('orbiteye-wordmark');
+  const barFill= document.getElementById('startup-bar-fill');
+  const pctEl  = document.getElementById('startup-pct');
+  const stateEl= document.getElementById('startup-status-text');
+  const cornerPct = document.getElementById('oe-corner-pct');
+  if (!stage || !overlay || !svg || !barFill || !pctEl) return;
+
+  const STARTUP_DURATION = 3400;
+  const lines = Array.from(svg.querySelectorAll('.oe-line'));
+  let finished = false;
+
+  // 等宽进度条 + 字面百分比 + 刻度游标共用同一个 0~1 进度
+  function setProgress(ratio) {
+    const v = Math.max(0, Math.min(1, ratio));
+    barFill.style.transform = `scaleX(${v.toFixed(4)})`;
+    const n = Math.round(v * 100);
+    pctEl.textContent = String(n);
+    if (cornerPct) cornerPct.textContent = String(n).padStart(3,'0');
+    stage.style.setProperty('--oe-p', v.toFixed(4));
   }
-  startupRaf=requestAnimationFrame(drawStartupStars);
-}
-// ── 进度更新（圆形进度环 + 领头点 + 圆心百分比）──
-function updateProgressRing(pct){
-  const v=Math.max(0,Math.min(100,Math.round(pct)));
-  const ring=document.querySelector('.emblem-draw');
-  if(ring){ring.style.strokeDasharray=startupCirc;ring.style.strokeDashoffset=startupCirc*(1-v/100);}
-  const head=document.querySelector('.emblem-head');
-  if(head){const ang=(-90+v/100*360)*Math.PI/180,rpx=86*(172/200);
-    head.style.left=(86+rpx*Math.cos(ang))+'px';head.style.top=(86+rpx*Math.sin(ang))+'px';}
-  const pctEl=document.getElementById('startup-pct');
-  if(pctEl)pctEl.textContent=v;
-}
-// ── 启动序列 ──
-updateProgressRing(0);
-initStartupStars(); drawStartupStars();
-// ── anime.js 入场（animejs.com 招牌：进度环随加载自描 + 逐字弹性弹出 + 克制留白）──
-if(window.anime){
-  anime({targets:'.startup-emblem',opacity:[0,1],scale:[.92,1],duration:1200,easing:'easeOutExpo'});
-  anime({targets:'.emblem-head',opacity:[0,1],duration:700,delay:500,easing:'easeOutQuad'});
-  anime({targets:'.startup-pct',opacity:[0,1],duration:800,delay:520,easing:'easeOutQuad'});
-  anime({targets:'.startup-title span',opacity:[0,1],scale:[0,1],translateY:[60,0],rotate:[-35,0],
-    delay:anime.stagger(110,{start:540}),duration:1400,easing:'easeOutElastic(1,.55)'});
-  anime({targets:'.startup-cap',opacity:[0,1],translateY:[10,0],duration:900,delay:1150,easing:'easeOutQuad'});
-  anime({targets:'.startup-status',opacity:[0,1],duration:900,delay:1300,easing:'easeOutQuad'});
-}else{
-  document.querySelectorAll('.startup-emblem,.emblem-head,.startup-pct,.startup-title span,.startup-cap,.startup-status').forEach(s=>s.style.opacity=1);
-}
-// ── 鼠标互动：hero 轻微视差（轻量 transform，不触发混合层重绘）──
-window.addEventListener('mousemove',e=>{
-  if(window.anime){const dx=(e.clientX/innerWidth-.5),dy=(e.clientY/innerHeight-.5);
-    anime({targets:'.hero',translateX:dx*22,translateY:dy*16,duration:800,easing:'easeOutQuad'});}
-});
-window.addEventListener('resize',()=>{if(startupRaf)initStartupStars();});
-const statusEl=document.getElementById('startup-status-text');
-const statusSeq=[    {t:0,   msg:'正在获取 ISS 实时位置...',          prog:5},    {t:300, msg:'正在加载 NASA 每日天文图...',         prog:12},    {t:650, msg:'正在计算与澳门的直线距离...',         prog:22},    {t:1000,msg:'正在查询近期火箭发射计划...',         prog:35},    {t:1350,msg:'正在加载 CelesTrak 卫星轨道数据...',  prog:48},    {t:1700,msg:'正在获取火星天气数据...',             prog:60},    {t:2000,msg:'正在监测太阳风暴活动...',             prog:72},    {t:2300,msg:'正在校准大气环境传感器数据...',       prog:82},    {t:2600,msg:'正在整理近地小行星列表...',           prog:90},    {t:2900,msg:'遥测数据流已就绪',                    prog:100},  ];
-let seqIdx=0;
-const statusTimer=setInterval(()=>{    if(seqIdx<statusSeq.length){
-  const step=statusSeq[seqIdx];      if(statusEl)statusEl.textContent=step.msg;      targetProgress=step.prog;      seqIdx++;
-  }else{      clearInterval(statusTimer);    }  },300);
 
-// ── 进度条平滑动画 ──
-function animProgress(){    if(document.getElementById('loading-overlay').classList.contains('hidden'))return;    startupProgress+=(targetProgress-startupProgress)*.08;    updateProgressRing(startupProgress);    requestAnimationFrame(animProgress);  }  requestAnimationFrame(animProgress);
+  function completeStartup() {
+    if (finished) return;
+    finished = true;
+    setProgress(1);
+    svg.style.setProperty('--oe-glow-alpha', '0.24');
+    if (stateEl) stateEl.textContent = '深空网络全部节点在线';
+    finishStartup();
+  }
 
-// ── 完成淡出 ──
-const finishStartup=()=>{    clearInterval(statusTimer);    if(startupRaf)cancelAnimationFrame(startupRaf);    if(statusEl)statusEl.textContent='✅ 深空网络全部节点在线';    targetProgress=100;    setTimeout(()=>{
-  document.getElementById('loading-overlay').classList.add('hidden');
-      // 延迟600ms等CSS过渡完成后刷新globe真实尺寸
-      setTimeout(()=>{ if(window._resumeGlobe) window._resumeGlobe(); },600);
-    },800);  };
-// 总时长 ~3.2秒 + 0.8秒淡出 + 0.6秒延迟 = ~4.6秒后globe正确撑满
-setTimeout(finishStartup,3400);  try{initGlobe();}catch(e){}
+  const statusSeq = [
+    { t: 0,    msg: '正在校准字形轮廓…' },
+    { t: 760,  msg: '正在建立 DSN 遥测链路…' },
+    { t: 1520, msg: '正在同步星历与轨道数据…' },
+    { t: 2260, msg: '正在校验观测阵列…' },
+    { t: 2980, msg: '遥测数据流已就绪' }
+  ];
+  statusSeq.forEach(step => window.setTimeout(() => {
+    if (!finished && stateEl) stateEl.textContent = step.msg;
+  }, step.t));
+
+  // 降低动态效果：直接呈现静态完成态
+  if (reduceMotion) {
+    lines.forEach(path => { path.style.strokeDasharray = 'none'; path.style.strokeDashoffset = '0'; });
+    setProgress(1);
+    svg.style.setProperty('--oe-glow-alpha', '0.24');
+    window.setTimeout(completeStartup, 300);
+    return;
+  }
+
+  // 每条轮廓按真实长度设 dash；延迟 = 字母序号(左→右) + 轮廓序号 + 层深
+  const metrics = lines.map(path => {
+    const L = Math.ceil(path.getTotalLength());
+    path.style.strokeDasharray = String(L);
+    path.style.strokeDashoffset = String(L);
+    const g  = Number(path.dataset.g || 0);
+    const ci = Number(path.dataset.c || 0);
+    const ak = Math.abs(Number(path.dataset.k || 0));
+    // 最后一笔约 3.0s 收束，留出约 0.4s 完整字形静止欣赏后再转场
+    const delay = g * 215 + ci * 48 + (2 - ak) * 80;
+    const duration = 560 + Math.min(L / 8, 440);
+    return { path, L, delay, duration };
+  });
+
+  if (typeof window.anime === 'function') {
+    metrics.forEach(({ path, L, delay, duration }) => {
+      window.anime({ targets: path, strokeDashoffset: [L, 0], delay, duration,
+        easing: 'cubicBezier(0.22, 0.88, 0.34, 1)' });
+    });
+    const glow = { a: 0.06 };
+    window.anime({ targets: glow, a: 0.24, delay: 2550, duration: 600, easing: 'easeOutQuad',
+      update: () => svg.style.setProperty('--oe-glow-alpha', glow.a.toFixed(3)) });
+  } else {
+    metrics.forEach(({ path, L, delay, duration }) => {
+      path.animate([{ strokeDashoffset: L }, { strokeDashoffset: 0 }],
+        { delay, duration, easing: 'cubic-bezier(0.22,0.88,0.34,1)', fill: 'forwards' });
+    });
+  }
+
+  const t0 = performance.now();
+  function tick(now) {
+    if (finished) return;
+    const raw = Math.min(1, (now - t0) / STARTUP_DURATION);
+    setProgress(1 - Math.pow(1 - raw, 1.35));
+    if (raw < 1) window.requestAnimationFrame(tick);
+    else completeStartup();
+  }
+  window.requestAnimationFrame(tick);
+})();
+
+// ── 收束转场：字标微上移 → 0.8s 遮罩淡出(.hidden) → 0.6s 恢复地球 ──
+function finishStartup(){
+  if(window.anime && !reduceMotion){
+    anime({targets:'#oe-stage',translateY:[0,-14],scale:[1,.985],opacity:[1,0],duration:560,easing:'easeInOutQuad'});
+  }
+  setTimeout(()=>{
+    const ov=document.getElementById('loading-overlay');
+    if(ov)ov.classList.add('hidden');
+    setTimeout(()=>{ if(window._resumeGlobe) window._resumeGlobe(); },600);
+  },800);
+}
+try{initGlobe();}catch(e){}
 
 refreshAll();
 document.getElementById('city-select').addEventListener('change',fetchWeather);
-document.getElementById('planet-select').addEventListener('change',fetchSpaceBody);  setInterval(fetchISS,10000);setInterval(fetchLaunches,120000);setInterval(fetchSpaceBody,300000);  setInterval(fetchThreats,180000);setInterval(fetchWeather,300000);  setInterval(fetchAPOD,3600000);setInterval(fetchMarsWeather,600000);  setInterval(fetchNews,900000);setInterval(fetchExoplanets,3600000);  setInterval(fetchObserving,600000);    setInterval(fetchHealth,30000);  setInterval(fetchISSPassDetail,300000);  setInterval(()=>{
-const e=document.getElementById('clk');if(e)e.textContent=new Date().toLocaleString('zh-TW',{hour12:false,timeZone:'Asia/Shanghai'})+' CST';},1000);
+document.getElementById('planet-select').addEventListener('change',fetchSpaceBody);
+// 后台标签页暂停轮询；回到前台后由各自周期自然恢复
+const whenVisible = fn => () => { if (!document.hidden) fn(); };
+setInterval(whenVisible(fetchISS),10000);setInterval(whenVisible(fetchLaunches),120000);setInterval(whenVisible(fetchSpaceBody),300000);
+setInterval(whenVisible(fetchThreats),180000);setInterval(whenVisible(fetchWeather),300000);
+setInterval(whenVisible(fetchAPOD),3600000);setInterval(whenVisible(fetchMarsWeather),600000);setInterval(whenVisible(fetchNews),900000);
+setInterval(whenVisible(fetchExoplanets),3600000);setInterval(whenVisible(fetchObserving),600000);setInterval(whenVisible(fetchHealth),30000);
+setInterval(whenVisible(fetchISSPassDetail),300000);  setInterval(()=>{
+const e=document.getElementById('clk');if(e)e.textContent=new Date().toLocaleTimeString('zh-TW',{hour12:false,timeZone:'Asia/Shanghai'});},1000);
 document.querySelectorAll('.tilt').forEach(el=>{el.addEventListener('mousemove',e=>{
 const r=el.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;el.style.transform='perspective(1200px) rotateY('+(x*2.5)+'deg) rotateX('+(-y*2.5)+'deg)';});el.addEventListener('mouseleave',()=>{el.style.transform='perspective(1200px) rotateY(0deg) rotateX(0deg)';});});});

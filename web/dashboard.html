@@ -1,89 +1,250 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#06080c">
 <title>OrbitEye · 太空遥测仪表盘</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
-<link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='26' fill='none' stroke='%236cb6e8' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='8' fill='%236cb6e8'/%3E%3C/svg%3E">
-<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.2/anime.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>if(!window.THREE)document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');</script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/static/css/tailwind-lite.css">
 <link rel="stylesheet" href="/static/css/datav.css">
 <style>
-/* ── 仪表盘顶栏（克制、留白、单一焦点）── */
-.dash-header { background:rgba(12,18,28,.7);border:1px solid var(--border);border-radius:10px;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(14px); }
-.dash-brand { font-family:var(--display);font-size:15px;letter-spacing:4px;color:#fff;font-weight:600; }
-.dash-sub { font-size:9px;color:var(--dim);letter-spacing:2px;margin-top:2px; }
-.head-divider { width:1px;height:20px;background:rgba(150,180,210,.12);display:inline-block; }
+/* ═══════════════════════════════════════════════════
+   MASTHEAD — 品牌报头：大胆字阶 + 单一强调色，确立视觉重心
+   ═══════════════════════════════════════════════════ */
+.masthead { display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:24px 52px 16px 8px;position:relative;border-bottom:1px solid rgba(150,180,210,.12); }
+.masthead::after { content:'';position:absolute;left:8px;bottom:-1px;width:58px;height:2px;background:var(--primary);border-radius:2px; }
+.mh-eyebrow { display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--dim);margin-bottom:9px; }
+.mh-eyebrow i { font-style:normal;color:rgba(150,180,210,.32); }
+.mh-pulse { width:6px;height:6px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 4px rgba(108,182,232,.10);animation:mhPulse 2.6s ease-in-out infinite; }
+@keyframes mhPulse { 0%,100%{box-shadow:0 0 0 4px rgba(108,182,232,.10)} 50%{box-shadow:0 0 0 7px rgba(108,182,232,.02)} }
+.mh-title { font-family:'Chakra Petch',sans-serif;font-size:clamp(38px,5.6vw,60px);font-weight:600;letter-spacing:-.025em;line-height:.98;color:#f4f9fe;
+  text-shadow:0 0 34px rgba(108,182,232,.16),0 1px 0 rgba(255,255,255,.04); }
+.mh-title span { color:var(--primary);text-shadow:0 0 26px rgba(108,182,232,.4); }
+.mh-sub { font-size:12px;color:var(--dim);margin-top:11px;letter-spacing:.4px; }
+.mh-sub b { color:rgba(150,180,210,.38);font-weight:400;margin:0 3px; }
+.mh-sub i { font-style:normal;color:rgba(150,180,210,.28);margin-left:4px; }
+.mh-r { display:flex;align-items:center;gap:18px;padding-bottom:4px; }
+.mh-clock { display:flex;flex-direction:column;align-items:flex-end;gap:2px; }
+.mh-clock span { font-family:var(--mono);font-size:23px;color:#eaf2fa;letter-spacing:1px;font-variant-numeric:tabular-nums;line-height:1.1; }
+.mh-clock em { font-style:normal;font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:var(--dim); }
+.mh-div { width:1px;height:30px;background:rgba(150,180,210,.14); }
+.mh-sys { display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--good);white-space:nowrap; }
+.mh-led { width:6px;height:6px;border-radius:50%;background:var(--good);box-shadow:0 0 8px rgba(79,209,165,.5); }
+.mh-btn { font-family:var(--display);font-size:11px;letter-spacing:.5px;color:var(--accent);background:rgba(108,182,232,.06);border:1px solid rgba(108,182,232,.28);padding:9px 15px;border-radius:6px;cursor:pointer;transition:background .3s,border-color .3s,transform .3s cubic-bezier(.22,1,.36,1);white-space:nowrap; }
+.mh-btn:hover { background:rgba(108,182,232,.13);border-color:rgba(108,182,232,.5);transform:translateY(-1px); }
+.mh-btn:active { transform:translateY(0) scale(.98); }
+.mh-btn span { display:inline-block;margin-left:4px;transition:transform .3s cubic-bezier(.22,1,.36,1); }
+.mh-btn:hover span { transform:translate(2px,-2px); }
+@media(max-width:760px){
+  .masthead{flex-direction:column;align-items:flex-start;gap:18px;padding-top:20px;padding-right:48px;}
+  .mh-eyebrow{white-space:nowrap;overflow:hidden;max-width:100%;font-size:9px;letter-spacing:1px;}
+  .mh-r{width:100%;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  .mh-clock span{font-size:20px;} .mh-div{display:none;} .mh-sys{font-size:9px;}
+}
+/* 窄屏面板标题栏：允许换行，标题不被压缩成竖排 */
+@media(max-width:640px){
+  .pnl .pt{flex-wrap:wrap;row-gap:6px;}
+  .pnl .pt > span:first-child{white-space:nowrap;flex-shrink:0;}
+}
+
+/* ── ZONE LABEL：编号 + 主标题 + 英文副题 + 延伸线 ── */
+.zone-label { display:flex;align-items:center;gap:12px;padding:22px 8px 12px; }
+.zone-label--ws { padding-top:30px; }
+.zl-idx { font-family:var(--mono);font-size:11px;color:var(--primary);letter-spacing:1px;border:1px solid rgba(108,182,232,.28);border-radius:4px;padding:2px 7px; }
+.zl-txt { display:flex;align-items:baseline;gap:10px;font-family:var(--display);font-size:14px;font-weight:600;letter-spacing:1px;color:var(--label); }
+.zl-txt i { font-family:var(--mono);font-style:italic;font-size:10px;font-weight:400;letter-spacing:2px;color:rgba(150,180,210,.4); }
+.zl-line { flex:1;height:1px;background:linear-gradient(90deg,rgba(150,180,210,.16),transparent); }
+.zl-live,.zl-count { display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--dim);white-space:nowrap; }
+.zl-live b { width:5px;height:5px;border-radius:50%;background:var(--good);box-shadow:0 0 7px rgba(79,209,165,.6);animation:zlPulse 2s ease-in-out infinite; }
+@keyframes zlPulse { 0%,100%{opacity:.45} 50%{opacity:1} }
+@media(max-width:600px){ .zl-txt i{display:none;} .zl-count{font-size:8px;letter-spacing:1px;} }
+
+/* ── FOCUS GRID：焦点区，地球主视觉 + ISS 副卡 ── */
+.dashboard-grid.focus-grid { grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);padding-top:0;padding-bottom:0; }
+.focus-grid .globe-cell { min-height:332px;grid-column:auto;
+  box-shadow:inset 0 1px 0 rgba(140,200,240,.06),0 2px 28px rgba(0,0,0,.3),0 0 0 1px rgba(108,182,232,.05); }
+.focus-grid #iss-panel { min-height:332px; }
+@media(max-width:1100px){ .dashboard-grid.focus-grid{grid-template-columns:1fr;} .focus-grid .globe-cell,.focus-grid #iss-panel{min-height:270px;} }
+
+/* ── 轨道测控 HUD 环：焦点地球的记忆点，纯覆盖层不影响 3D 交互 ── */
+.globe-cell { --iss-lon:0deg; }
+#globe-telemetry #gl-pos,#globe-telemetry #gl-dst { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+@media(max-width:640px){ #globe-telemetry{font-size:8.5px;padding:5px 7px;gap:5px;} #globe-telemetry .gl-long{display:none;} }
+.globe-hud { position:absolute;inset:0;pointer-events:none;z-index:2;overflow:hidden; }
+.globe-hud svg { position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(78%,300px);height:min(78%,300px);opacity:.62; }
+.globe-hud .gh-ring { fill:none;stroke:var(--primary);stroke-width:.7;opacity:.28; }
+.globe-hud .gh-tick { stroke:var(--primary);stroke-width:.9;opacity:.5; }
+.globe-hud .gh-tick.maj { stroke-width:1.3;opacity:.72; }
+.globe-hud .gh-card { fill:var(--dim);font-family:var(--mono);font-size:9px;letter-spacing:1px;opacity:.85; }
+.globe-hud .gh-cursor { transform:rotate(var(--iss-lon));transform-origin:100px 100px;transition:transform 1.2s cubic-bezier(.4,0,.2,1); }
+.globe-hud .gh-cursor-line { stroke:#9bd7f5;stroke-width:1;opacity:.75; }
+.globe-hud .gh-cursor-dot { fill:#cfeaff; }
+.globe-hud .gh-label { position:absolute;top:10px;left:12px;font-family:var(--mono);font-size:8px;
+  letter-spacing:1.6px;color:var(--label);opacity:.5;line-height:1.6; }
+.globe-hud .gh-label b { color:var(--primary);font-weight:500; }
+@media(max-width:640px){ .globe-hud svg{width:min(88%,260px);height:min(88%,260px);opacity:.5;} }
+/* ── 实时遥测刷新微脉冲：数据到位时极轻闪一下，让 LIVE 名副其实 ── */
+@keyframes telPulse { 0%{color:#bfe6ff;} 100%{color:inherit;} }
+.tel-pulse { animation:telPulse 1.1s ease-out; }
+@media(prefers-reduced-motion:reduce){ .tel-pulse{animation:none;} }
+
+/* ── WORKSPACE TABS：分区切换，滑动指示条 ── */
+.ws-tabs { position:relative;display:flex;align-items:center;gap:6px;margin:0 16px 6px;border-bottom:1px solid rgba(150,180,210,.12); }
+.ws-tab { position:relative;display:flex;align-items:center;gap:8px;background:transparent;border:0;color:var(--dim);font-family:var(--display);font-size:13px;font-weight:500;letter-spacing:.5px;padding:12px 17px;cursor:pointer;transition:color .3s ease;white-space:nowrap; }
+.ws-tab:hover { color:var(--label); }
+.ws-tab:active { color:var(--primary); transform:translateY(1px); }
+.ws-tab.on { color:#eaf4fc; }
+.ws-tab span { font-family:var(--mono);font-size:9px;color:rgba(150,180,210,.5);border:1px solid rgba(150,180,210,.18);border-radius:3px;padding:1px 5px;transition:color .3s,border-color .3s; }
+.ws-tab.on span { color:var(--primary);border-color:rgba(108,182,232,.42); }
+.ws-ind { position:absolute;bottom:-1px;left:0;height:2px;width:0;background:linear-gradient(90deg,rgba(108,182,232,.5),var(--primary),rgba(155,215,245,.9));border-radius:2px;box-shadow:0 0 12px rgba(108,182,232,.55);transition:transform .45s cubic-bezier(.22,1,.36,1),width .45s cubic-bezier(.22,1,.36,1); }
+@media(max-width:600px){ .ws-tabs{overflow-x:auto;gap:0;} .ws-tab{padding:11px 11px;font-size:12px;} }
+
+/* ── WS PANES：分区内容，切换淡入 ── */
+.ws-pane { display:none; }
+.ws-pane.on { display:block;animation:paneIn .5s cubic-bezier(.22,1,.36,1); }
+@keyframes paneIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+.dashboard-grid.ws-grid { grid-template-columns:repeat(6,1fr);padding-top:10px; }
+.ws-grid > .pnl { grid-column:span 2;min-height:190px; }
+.ws-pane[data-ws="deep"] #apod-panel { grid-column:span 6; }
+.ws-pane[data-ws="mission"] .ws-grid > .pnl { grid-column:span 3; }
+@media(max-width:1200px){
+  .dashboard-grid.ws-grid{grid-template-columns:repeat(2,1fr);}
+  .ws-grid > .pnl{grid-column:span 1;}
+  .ws-pane[data-ws="deep"] #apod-panel{grid-column:span 2;}
+  .ws-pane[data-ws="mission"] .ws-grid > .pnl{grid-column:span 1;}
+}
+@media(max-width:640px){ .dashboard-grid.ws-grid{grid-template-columns:1fr;} .ws-grid > .pnl,.ws-pane[data-ws="deep"] #apod-panel,.ws-pane[data-ws="mission"] .ws-grid > .pnl{grid-column:span 1;} }
+/* 平板双列时避免第三块面板落单成半宽；桌面高卡内容垂直居中，去掉上重下轻的空洞 */
+@media(min-width:641px) and (max-width:1200px){ .ws-pane[data-ws="env"] #obs-panel{grid-column:span 2;} }
+@media(min-width:1201px){ #weather-panel .p-3,#mars-weather-panel .p-3{display:flex;flex-direction:column;justify-content:center;min-height:292px;} #weather-content:not(.hidden),#mars-weather-content:not(.hidden){width:100%;} }
+@media(prefers-reduced-motion:reduce){ .ws-pane.on{animation:none;} .mh-pulse,.zl-live b{animation:none;} .ws-ind{transition:none;} }
 
 /* ═══════════════════════════════════════════════════
-   STARTUP SCREEN — animejs.com 风格：极简高级 + 自描线条 + 弹性
+   STARTUP SCREEN — 精密仪器制图 / ORBITAL CALIBRATION
+   字形来自 DIN 系 Bahnschrift 真实轮廓 + 5 层对称偏移单线
    ═══════════════════════════════════════════════════ */
 #loading-overlay {
   position:fixed;inset:0;z-index:99999;overflow:hidden;
-  background:#06080c;
-  background:radial-gradient(130% 130% at 50% 42%, #0b0f17 0%, #06080c 56%, #040609 100%);
   display:flex;align-items:center;justify-content:center;
-  flex-direction:column;
-  transition:opacity 1s cubic-bezier(.4,0,.2,1), visibility 1s cubic-bezier(.4,0,.2,1);
+  background:radial-gradient(circle at 50% 46%, #08111e 0%, #04070d 70%, #020306 100%);
+  opacity:1;visibility:visible;
+  transition:opacity .8s cubic-bezier(.22,1,.36,1), visibility .8s cubic-bezier(.22,1,.36,1);
+  user-select:none;
 }
-#loading-overlay.hidden { opacity:0; pointer-events:none; visibility:hidden; }
-/* 兜底：极端情况下最迟 7s 强制消失，避免黑屏卡死 */
+#loading-overlay.hidden { opacity:0;visibility:hidden;pointer-events:none; }
 #loading-overlay { animation:startupFailsafe .01s linear 7s forwards; }
 @keyframes startupFailsafe { to { opacity:0; visibility:hidden; pointer-events:none; } }
-#startup-canvas { position:absolute;inset:0;z-index:0;opacity:.5; }
-#startup-content { position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center; }
-.hero { display:flex;flex-direction:column;align-items:center;justify-content:center;will-change:transform; }
-/* ── 中央徽标：真实进度环 + 发光领头点 + 圆心百分比 ── */
-.startup-emblem { position:relative;width:172px;height:172px;margin-bottom:40px;opacity:0; }
-.emblem-svg { position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);overflow:visible; }
-.emblem-track { fill:none;stroke:rgba(226,240,250,.07);stroke-width:1.4; }
-.emblem-draw { fill:none;stroke:#7dd3fc;stroke-width:2.2;stroke-linecap:round;
-  stroke-dasharray:540;stroke-dashoffset:540;
-  filter:drop-shadow(0 0 8px rgba(125,211,252,.75)); }
-.emblem-deco { fill:none;stroke:rgba(125,211,252,.13);stroke-width:1;stroke-dasharray:2 11;
-  transform-box:fill-box;transform-origin:center;animation:decoSpin 26s linear infinite; }
-@keyframes decoSpin { to { transform:rotate(360deg); } }
-.emblem-head { position:absolute;width:8px;height:8px;border-radius:50%;
-  background:#eaf4fb;box-shadow:0 0 9px 2px rgba(125,211,252,.55),0 0 20px 6px rgba(125,211,252,.22);
-  transform:translate(-50%,-50%);left:50%;top:7%;opacity:0; }
-.startup-pct { display:flex;align-items:center;justify-content:center;gap:3px;
-  font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;
-  color:rgba(186,206,224,.55);margin-top:22px;opacity:0; }
-.startup-pct .pct-sign { letter-spacing:0; }
-/* ── 标题：英文品牌名（Clash Display 高级展示字体 + 逐字弹出）── */
-.startup-title { display:flex;align-items:center;gap:.02em;margin-right:-.02em;margin-left:.14em;
-  font-family:'Clash Display','Space Grotesk','Inter',sans-serif;
-  font-size:clamp(46px,7.5vw,68px);font-weight:600;letter-spacing:.12em;
-  color:#f4f7fa;will-change:transform,opacity;
-  text-shadow:0 2px 30px rgba(125,211,252,.22); }
-.startup-title span { display:inline-block;opacity:0; }
-.startup-space { width:.3em;height:1px; }
-/* ── 副标题（控制台风）── */
-.startup-cap { font-family:'Share Tech Mono',monospace;font-size:10px;
-  letter-spacing:5px;color:rgba(190,205,220,.45);margin-top:18px;opacity:0; }
-/* ── 状态小字（控制台风）── */
-.startup-status { font-family:'Share Tech Mono',monospace;font-size:9px;color:rgba(255,255,255,.34);
-  letter-spacing:2px;margin-top:28px;display:flex;align-items:center;gap:8px;opacity:0; }
-.startup-status .status-blink { width:4px;height:4px;border-radius:50%;background:#34d399;
-  box-shadow:0 0 6px #34d399;animation:dotBlinkSoft 1.6s ease-in-out infinite; }
-@keyframes dotBlinkSoft { 0%,100%{opacity:.35} 50%{opacity:1} }
 
+.oe-startup-stage {
+  --oe-off-x:2px;--oe-off-y:3.6px;--oe-glow-alpha:.08;--oe-p:0;
+  width:min(1480px,96vw);display:flex;flex-direction:column;align-items:stretch;
+}
+.oe-meta { display:flex;justify-content:space-between;align-items:center;gap:16px;
+  font-family:'Share Tech Mono','JetBrains Mono',ui-monospace,monospace;
+  font-size:10px;letter-spacing:.22em;color:rgba(168,200,224,.5); }
+.oe-meta .oe-fid { color:rgba(135,212,250,.78); }
+.oe-wordmark-box { position:relative;width:100%;margin:22px 0 14px; }
+.oe-wordmark-svg { width:100%;height:auto;display:block;overflow:visible;
+  filter:drop-shadow(0 0 7px rgba(135,212,250,var(--oe-glow-alpha)));
+  transition:filter .6s ease; }
+.oe-line { fill:none;stroke-linecap:round;stroke-linejoin:round; }
+.oe-layer { transform:translate(calc(var(--k) * var(--oe-off-x)), calc(var(--k) * var(--oe-off-y))); }
+.oe-k0 { stroke:#f4faff;stroke-width:1.45;opacity:.96; }
+.oe-k1 { stroke:#cfe8f8;stroke-width:1.15;opacity:.7; }
+.oe-k2 { stroke:#78b8dc;stroke-width:.9;opacity:.42; }
+.oe-corner { position:absolute;width:18px;height:18px;pointer-events:none;
+  border-color:rgba(135,212,250,.3);border-style:solid;border-width:0; }
+.oe-corner.tl { top:-10px;left:-10px;border-top-width:1px;border-left-width:1px; }
+.oe-corner.tr { top:-10px;right:-10px;border-top-width:1px;border-right-width:1px; }
+.oe-corner.bl { bottom:-10px;left:-10px;border-bottom-width:1px;border-left-width:1px; }
+.oe-corner.br { bottom:-10px;right:-10px;border-bottom-width:1px;border-right-width:1px; }
+.oe-ruler { position:relative;width:100%;height:11px;opacity:.6;
+  background:repeating-linear-gradient(90deg,rgba(135,212,250,.28) 0 1px,transparent 1px 24px);
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent); }
+.oe-cursor { position:absolute;top:-3px;left:calc(var(--oe-p) * 100%);width:1px;height:17px;
+  background:#eaf6ff;box-shadow:0 0 6px rgba(135,212,250,.55);transition:left .12s linear; }
+.oe-progress-wrap { width:100%;display:flex;flex-direction:column;gap:9px;margin-top:12px; }
+.oe-progress-track { position:relative;width:100%;height:2.5px;background:rgba(180,220,242,.14);overflow:hidden; }
+.oe-progress-fill { width:100%;height:100%;
+  background:linear-gradient(90deg,rgba(155,212,242,.76) 0%,#f2f9ff 100%);
+  box-shadow:0 0 8px rgba(135,212,250,.24);
+  transform:scaleX(0);transform-origin:left center;will-change:transform; }
+.oe-progress-meta { display:flex;justify-content:space-between;align-items:center;gap:16px;
+  font-family:'Share Tech Mono','JetBrains Mono',ui-monospace,monospace;font-size:11px;
+  letter-spacing:.14em;color:rgba(235,246,255,.86);font-variant-numeric:tabular-nums; }
+.oe-progress-meta .oe-state { color:rgba(168,200,224,.62);letter-spacing:.1em; }
+/* 轨道刻度尺：游标下方的角度刻度标注，呼应深空测控仪器语言 */
+.oe-ruler-scale { position:relative;width:100%;display:flex;justify-content:space-between;
+  font-family:'Share Tech Mono','JetBrains Mono',ui-monospace,monospace;
+  font-size:9px;letter-spacing:.1em;color:rgba(150,190,216,.42);margin-top:5px; }
+.oe-ruler-scale span { position:relative; }
+.oe-ruler-scale span::before { content:'';position:absolute;top:-6px;left:50%;width:1px;height:4px;background:rgba(135,212,250,.28); }
+/* 四角系统读数：填充上下留白，营造仪表 surrounds，不抢字标 */
+.oe-hud { position:absolute;font-family:'Share Tech Mono','JetBrains Mono',ui-monospace,monospace;
+  font-size:10px;line-height:1.85;letter-spacing:.14em;color:rgba(158,196,222,.44);
+  pointer-events:none;user-select:none; }
+.oe-hud b { font-weight:400;color:rgba(135,212,250,.72); }
+.oe-hud .k { color:rgba(150,180,205,.34); }
+.oe-hud-tl { top:5.5%;left:5%; }
+.oe-hud-tr { top:5.5%;right:5%;text-align:right; }
+.oe-hud-bl { bottom:5.5%;left:5%; }
+.oe-hud-br { bottom:5.5%;right:5%;text-align:right; }
+.oe-hud-line { width:118px;height:1px;margin:7px 0;
+  background:linear-gradient(90deg,rgba(135,212,250,.32),transparent); }
+.oe-hud-tr .oe-hud-line,.oe-hud-br .oe-hud-line { background:linear-gradient(270deg,rgba(135,212,250,.32),transparent); }
+.oe-hud-ring { display:inline-flex;align-items:center;gap:9px; }
+.oe-hud-ring svg { width:34px;height:34px;overflow:visible; }
+.oe-hud-ring .rr { fill:none;stroke:rgba(135,212,250,.34);stroke-width:1; }
+.oe-hud-ring .rd { fill:none;stroke:rgba(135,212,250,.7);stroke-width:1.4;stroke-linecap:round;
+  transform-origin:17px 17px;animation:oeSpin 6s linear infinite; }
+@keyframes oeSpin { to { transform:rotate(360deg); } }
+@media(max-width:640px){
+  .oe-hud { font-size:8px;line-height:1.7;letter-spacing:.08em; }
+  .oe-hud-tl,.oe-hud-tr { top:3.5%; } .oe-hud-bl,.oe-hud-br { bottom:3.5%; }
+  .oe-hud-tl,.oe-hud-bl { left:4%; } .oe-hud-tr,.oe-hud-br { right:4%; }
+  .oe-hud-line { width:76px;margin:4px 0; }
+  .oe-hud-ring svg { width:24px;height:24px; }
+  .oe-ruler-scale { font-size:7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .oe-hud-ring .rd { animation:none; }
+}
+@media(max-width:640px){
+  .oe-startup-stage { --oe-off-x:5.5px;--oe-off-y:9.5px; }
+  .oe-meta { font-size:9px;letter-spacing:.1em; }
+  .oe-meta .oe-dim { display:none; }
+  .oe-progress-meta { font-size:10px; }
+  .oe-wordmark-box { margin:16px 0 10px; }
+  .oe-corner { width:12px;height:12px; }
+  .oe-corner.tl,.oe-corner.bl { left:-2px; }
+  .oe-corner.tr,.oe-corner.br { right:-2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #loading-overlay { transition:opacity .2s linear, visibility .2s linear; }
+  .oe-wordmark-svg { --oe-glow-alpha:.24; }
+  .oe-line { stroke-dashoffset:0 !important; }
+  .oe-progress-fill { transform:scaleX(1) !important; }
+  .oe-cursor { transition:none; }
+}
 @keyframes fadeInUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 
 /* Help guide */
-#guide-toggle{position:fixed;top:12px;right:12px;z-index:95;width:28px;height:28px;border-radius:50%;border:1px solid rgba(56,189,248,.1);background:rgba(2,10,28,.92);color:#38bdf8;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .3s;backdrop-filter:blur(8px);}
+#guide-toggle{position:fixed;top:12px;right:12px;z-index:95;width:28px;height:28px;border-radius:50%;border:1px solid rgba(56,189,248,.1);background:rgba(2,10,28,.92);color:#38bdf8;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:14px;display:flex;align-items:center;justify-content:center;transition:border-color .3s,background .3s,box-shadow .3s;backdrop-filter:blur(8px);}
 #guide-toggle:hover{border-color:#38bdf8;box-shadow:0 0 16px rgba(56,189,248,.2);}
 #guide-toggle.on{background:rgba(56,189,248,.12);border-color:#38bdf8;}
-#guide-panel{position:fixed;top:48px;right:12px;z-index:94;width:290px;max-height:75vh;overflow-y:auto;background:rgba(2,10,28,.97);border:1px solid rgba(56,189,248,.1);border-radius:6px;padding:16px;font-size:10px;line-height:1.8;backdrop-filter:blur(16px);display:none;box-shadow:0 8px 48px rgba(0,0,0,.7);font-family:'Inter','Microsoft YaHei',sans-serif;}
+#guide-panel{position:fixed;top:48px;right:12px;z-index:94;width:290px;max-height:75vh;overflow-y:auto;background:rgba(2,10,28,.97);border:1px solid rgba(56,189,248,.1);border-radius:6px;padding:16px;font-size:10px;line-height:1.8;backdrop-filter:blur(16px);display:none;box-shadow:0 8px 48px rgba(0,0,0,.7);font-family:'IBM Plex Sans','Noto Sans SC',sans-serif;}
 #guide-panel.show{display:block;animation:fadeIn .25s ease;}
-#guide-panel h4{font-family:'Space Grotesk',sans-serif;font-size:11px;letter-spacing:1px;color:var(--accent);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+#guide-panel h4{font-family:'Chakra Petch',sans-serif;font-size:11px;letter-spacing:1px;color:var(--accent);margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
 #guide-panel .section{color:rgba(56,189,248,.7);font-size:9px;letter-spacing:1px;margin-top:10px;margin-bottom:4px;font-weight:600;}
 #guide-panel .item{color:#9ca3af;font-size:9px;padding:2px 0;display:flex;gap:6px;}
 #guide-panel .item .key{color:#38bdf8;min-width:80px;font-family:'Share Tech Mono',monospace;font-size:10px;}
@@ -98,15 +259,13 @@
 /* ═══════════════════════════════════════════════════
    PAGE-SPECIFIC COLOR THEMES
    ═══════════════════════════════════════════════════ */
-#pg-0 .section-divider span { color:#7dd3fc; text-shadow:0 0 8px rgba(56,189,248,.3); }
-#pg-0 header { border-color:rgba(56,189,248,.15) !important; }
 #pg-1 { background:radial-gradient(ellipse at 50% 40%,rgba(251,146,30,.07) 0%,rgba(2,11,26,1) 70%) !important; }
 #pg-1 .pnl { background:rgba(16,9,2,.96) !important; border-color:rgba(251,191,36,.2) !important; }
 #pg-1 .pnl.corner::before, #pg-1 .pnl.corner::after { border-color:rgba(251,191,36,.45) !important; }
 #pg-1 .pnl:hover { border-color:rgba(251,191,36,.4) !important; }
 .launch-card { width:540px; text-align:center; padding:52px 44px; }
 .launch-card .title {
-  font-family:'Space Grotesk',sans-serif; font-size:44px; letter-spacing:10px;
+  font-family:'Chakra Petch',sans-serif; font-size:44px; letter-spacing:8px;
   color:#fbbf24; font-weight:700;
   text-shadow:0 0 30px rgba(251,146,30,.35),0 0 80px rgba(251,146,30,.14);
   animation:solarTitlePulse 3s ease-in-out infinite;
@@ -123,9 +282,9 @@
 }
 .launch-card .desc { font-size:13px; color:#d4a574; line-height:2.2; margin-bottom:28px; font-weight:300; }
 .launch-card .launch-btn {
-  display:inline-block; padding:14px 40px; font-family:'Space Grotesk',sans-serif; font-size:14px; letter-spacing:4px;
+  display:inline-block; padding:14px 40px; font-family:'Chakra Petch',sans-serif; font-size:14px; letter-spacing:4px;
   color:#fbbf24; text-decoration:none; border:2px solid rgba(251,191,36,.45);
-  background:rgba(251,191,36,.08); border-radius:6px; transition:all .35s ease; text-transform:uppercase;
+  background:rgba(251,191,36,.08); border-radius:6px; transition:background .35s ease,border-color .35s ease,box-shadow .35s ease,transform .35s ease; text-transform:uppercase;
 }
 .launch-card .launch-btn:hover {
   background:rgba(251,191,36,.18); border-color:rgba(251,191,36,.75);
@@ -134,45 +293,280 @@
 .launch-card .hint { font-size:10px; color:rgba(251,191,36,.3); font-family:'Share Tech Mono',monospace; letter-spacing:2px; margin-top:18px; }
 
 
-/* Toast notification */
-#toast { position:fixed; bottom:120px; left:50%; transform:translateX(-50%); z-index:999; padding:12px 24px; border-radius:6px; font-family:'Share Tech Mono',monospace; font-size:10px; opacity:0; transition:opacity .3s; pointer-events:none; background:rgba(2,10,28,.94); border:1px solid #38bdf8; color:#e2e8f0; }
-#toast.on { opacity:1; } #toast.err { border-color:#f87171; color:#f87171; }
+/* ═══════════════════════════════════════════════════
+   CINEMATIC LAYER — 报头轨道水印 / 面板错落入场 / 观测扫描线 / 来源标注
+   ═══════════════════════════════════════════════════ */
+.masthead{overflow:hidden;}
+.mh-orbit{position:absolute;right:26px;top:-74px;width:268px;height:268px;pointer-events:none;z-index:0;opacity:.72;animation:orbitDrift 26s ease-in-out infinite alternate;}
+.mh-orbit .o1{fill:none;stroke:rgba(108,182,232,.16);stroke-width:1;}
+.mh-orbit .o5{fill:none;stroke:rgba(135,200,240,.24);stroke-width:3;stroke-dasharray:1 12;stroke-linecap:round;}
+.mh-orbit .o2{fill:none;stroke:rgba(108,182,232,.12);stroke-width:1;transform-origin:165px 165px;transform:rotate(-28deg) scaleY(.42);}
+.mh-orbit .o3{fill:var(--accent);filter:drop-shadow(0 0 5px rgba(108,182,232,.8));}
+.mh-orbit .o4{fill:none;stroke:rgba(108,182,232,.22);stroke-width:1;stroke-dasharray:2 6;}
+.mh-orbit .o-sat{transform-origin:165px 165px;animation:oeSatOrbit 12s linear infinite;}
+.mh-orbit .o-sat2{transform-origin:165px 165px;animation:oeSatOrbit 19s linear infinite reverse;}
+@keyframes orbitDrift{from{transform:translate(0,0) rotate(0)}to{transform:translate(-12px,8px) rotate(6deg)}}
+@keyframes oeSatOrbit{to{transform:rotate(360deg)}}
+.masthead .mh-l,.masthead .mh-r{position:relative;z-index:1;}
+.mh-seq{display:flex;align-items:center;gap:9px;margin-top:10px;font-family:var(--mono);font-size:9px;letter-spacing:1.6px;color:rgba(150,180,210,.5);}
+.mh-seq .bar{width:28px;height:1px;background:linear-gradient(90deg,var(--primary),transparent);}
+.mh-seq .hl{color:var(--primary);}
+@media(max-width:760px){ .mh-orbit{right:-90px;opacity:.35;} .mh-seq{font-size:8px;letter-spacing:1px;} }
+
+/* 面板错落入场：translate/opacity 与 JS 的 tilt transform 互不覆盖 */
+@keyframes pnlEnter{from{opacity:0;translate:0 14px}to{opacity:1;translate:0 0}}
+.dashboard-grid > .pnl{animation:pnlEnter .65s cubic-bezier(.22,1,.36,1) both;}
+.dashboard-grid > .pnl:nth-child(1){animation-delay:.04s}
+.dashboard-grid > .pnl:nth-child(2){animation-delay:.12s}
+.dashboard-grid > .pnl:nth-child(3){animation-delay:.20s}
+.dashboard-grid > .pnl:nth-child(4){animation-delay:.28s}
+.dashboard-grid > .pnl:nth-child(5){animation-delay:.36s}
+
+/* 观测面板：月相照度曲线（真实星历数据可视化） */
+.illum-chart { margin-top:9px;padding-top:8px;border-top:1px solid var(--border); }
+.illum-chart .ic-head { display:flex;justify-content:space-between;align-items:center;
+  font-family:var(--mono);font-size:8px;letter-spacing:1px;color:var(--dim);margin-bottom:3px; }
+.illum-chart .ic-head b { color:var(--accent);font-weight:400; }
+.illum-chart svg { width:100%;height:46px;display:block;overflow:visible; }
+.illum-chart .ic-grid { stroke:rgba(150,180,210,.1);stroke-width:1;stroke-dasharray:2 4; }
+.illum-chart .ic-area { fill:url(#icGrad);opacity:.5; }
+.illum-chart .ic-line { fill:none;stroke:var(--primary);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;
+  filter:drop-shadow(0 0 3px rgba(108,182,232,.5)); }
+.illum-chart .ic-dot { fill:var(--accent); }
+.illum-chart .ic-draw { stroke-dasharray:320;stroke-dashoffset:320;animation:icDraw 1.1s .3s cubic-bezier(.22,1,.36,1) forwards; }
+@keyframes icDraw { to { stroke-dashoffset:0; } }
+@media(prefers-reduced-motion:reduce){ .illum-chart .ic-draw{animation:none;stroke-dashoffset:0;} }
+
+/* 焦点地球：观测扫描线 */
+.scanline{position:absolute;inset:34px 0 0 0;pointer-events:none;z-index:2;overflow:hidden;border-radius:0 0 var(--radius) var(--radius);}
+.scanline::before{content:'';position:absolute;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,rgba(108,182,232,.28),transparent);animation:scanSweep 7s ease-in-out infinite;}
+@keyframes scanSweep{0%{top:2%;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:98%;opacity:0}}
+
+/* 数据来源标注：实时 / 演示 / 推算 */
+.src-tag{display:inline-flex;align-items:center;}
+.src-tag .origin{font-style:normal;margin-left:6px;padding:1px 5px;border-radius:3px;font-size:9px;letter-spacing:.5px;font-family:var(--mono);font-weight:600;}
+.origin--live{color:var(--good);background:rgba(79,209,165,.12);}
+.origin--archive{color:#8fb8d8;background:rgba(108,182,232,.12);}
+.origin--demo{color:var(--warn);background:rgba(230,180,92,.14);}
+.origin--local{color:var(--dim);background:rgba(150,180,210,.1);}
+.origin-legend{display:inline-flex;align-items:center;gap:10px;margin-left:14px;font-family:var(--mono);font-size:9px;white-space:nowrap;}
+.origin-legend .origin{margin-left:0;}
+@media(max-width:640px){
+  .status-bar{flex-wrap:wrap;gap:6px 10px;}
+  .status-bar>.d{display:none;}
+  .origin-legend{margin-left:0;}
+}
+@media(prefers-reduced-motion:reduce){
+  .mh-orbit,.mh-orbit .o-sat,.mh-orbit .o-sat2,.scanline::before{animation:none!important;}
+  .dashboard-grid > .pnl{animation:none!important;}
+}
+
+/* ═══════════════════════════════════════════════════
+   REFINEMENT PASS — 观感精修：精致 / 电影感 / 舒适度
+   只用既有变量与 GPU-safe 属性，不改结构、id、功能 class。
+   ═══════════════════════════════════════════════════ */
+
+/* [精致] 面板：带背景色调的冷阴影 + 顶缘微高光，模拟精密仪器面板的倒角 */
+.dashboard-grid .pnl {
+  box-shadow: 0 1px 0 rgba(190,220,245,.05) inset,
+              0 2px 24px rgba(4,10,20,.34);
+}
+.dashboard-grid .pnl:hover {
+  box-shadow: 0 1px 0 rgba(190,220,245,.08) inset,
+              0 10px 34px rgba(4,12,26,.46);
+}
+
+/* [舒适度] 面板正文：行高与字距放松一点，减少密集压迫感 */
+.pnl .p-3 { line-height: 1.65; }
+.pnl .p-3 p { line-height: 1.6; }
+
+/* [精致] 面板标题栏：字距更舒展，编号竖条加一道极淡渐隐 */
+.pt { letter-spacing: 1.6px; }
+.pt > span:first-child::before {
+  background: linear-gradient(180deg, var(--primary), rgba(108,182,232,.25));
+}
+
+/* [电影感] 报头标题：拉开字重与字距对比，标题更沉稳有分量 */
+.mh-title { letter-spacing: -.005em; text-shadow: 0 2px 24px rgba(6,12,22,.5); }
+.mh-title span { text-shadow: 0 0 28px rgba(108,182,232,.22); }
+
+/* [精致] 焦点区编号标签 / 分区标签：细描边更清晰 */
+.zl-idx, .ws-tab span { box-shadow: 0 1px 0 rgba(190,220,245,.05) inset; }
+
+/* [减法] 帮助面板按键标签收敛为青蓝 + 灰阶，去掉黄/紫/绿多色残留 */
+#guide-panel .tag.gesture,#guide-panel .tag.mouse,#guide-panel .tag.key,#guide-panel .tag.special {
+  background: rgba(108,182,232,.09); border-color: rgba(108,182,232,.26); color: var(--accent);
+}
+#guide-panel .tag.mouse { background: rgba(150,180,210,.08); border-color: rgba(150,180,210,.22); color: var(--label); }
+#guide-toggle,#guide-panel { border-color: rgba(108,182,232,.16); }
+#guide-toggle { color: var(--accent); }
+#guide-panel .item .key { color: var(--accent); }
+#guide-panel .section { color: var(--primary); }
+#guide-panel h4 { color: var(--accent); }
+
+@media(prefers-reduced-motion:reduce){ .mh-title,.mh-title span{text-shadow:none;} }
 </style>
 </head>
 <body>
 
 <div class="nebula"><div class="orb"></div><div class="orb"></div></div>
 
-<div id="loading-overlay">
-  <canvas id="startup-canvas"></canvas>
-  <div id="startup-content">
-    <div class="hero">
-      <div class="startup-emblem">
-        <svg class="emblem-svg" viewBox="0 0 200 200" aria-hidden="true">
-          <circle class="emblem-deco" cx="100" cy="100" r="98"/>
-          <circle class="emblem-track" cx="100" cy="100" r="86"/>
-          <circle class="emblem-draw"  cx="100" cy="100" r="86"/>
-        </svg>
-        <div class="emblem-head"></div>
+<div id="loading-overlay" role="status" aria-live="polite" aria-label="OrbitEye Initializing">
+  <div class="oe-hud oe-hud-tl">
+    <span class="k">SYSTEM / </span>ORBIT EYE <b>MK.IV</b><br>
+    <span class="k">NODE / </span>DSN-CN-01<br>
+    <div class="oe-hud-line"></div>
+    <span class="k">MODE / </span>ORBITAL CALIBRATION<br>
+    <span class="k">SEQ / </span><b>001</b> · REV <b>2026.11</b>
+  </div>
+  <div class="oe-hud oe-hud-tr">
+    <span class="oe-hud-ring"><svg viewBox="0 0 34 34" aria-hidden="true">
+      <circle class="rr" cx="17" cy="17" r="15"/>
+      <circle class="rr" cx="17" cy="17" r="6" stroke-dasharray="2 4"/>
+      <path class="rd" d="M17 2a15 15 0 0 1 12.7 7"/>
+      <circle cx="29.7" cy="9" r="1.8" fill="#9bd7f5"/>
+    </svg><span class="k">LOW EARTH ORBIT<br>INCLINATION </span><b>51.6°</b></span>
+    <div class="oe-hud-line"></div>
+    <span class="k">FRAME / </span>J2000 · ECI<br>
+    <span class="k">EPOCH / </span><b>SYNC</b>
+  </div>
+  <div class="oe-hud oe-hud-bl">
+    <span class="k">GROUND STATION / </span>澳门 MACAO<br>
+    <span class="k">LAT </span><b>22.20°N</b> <span class="k">LON </span><b>113.54°E</b>
+    <div class="oe-hud-line"></div>
+    <span class="k">TELEMETRY LINK / </span><b>ESTABLISHING</b><br>
+    <span class="k">BAND / </span>S-BAND · 2.2 GHz
+  </div>
+  <div class="oe-hud oe-hud-br">
+    <span class="k">ARRAY / </span><b>ONLINE</b><br>
+    <span class="k">CHANNELS / </span>11 ACTIVE
+    <div class="oe-hud-line"></div>
+    <span class="k">CALIBRATION / </span><b id="oe-corner-pct">000</b>/100<br>
+    <span class="k">STATUS / </span>NOMINAL
+  </div>
+  <div class="oe-startup-stage" id="oe-stage">
+    <div class="oe-meta">
+      <span class="oe-fid">OE / ORBITAL CALIBRATION</span>
+      <span class="oe-dim">SEQ 001 · DSN LINK ESTABLISHING</span>
+    </div>
+    <div class="oe-wordmark-box">
+      <span class="oe-corner tl"></span><span class="oe-corner tr"></span>
+      <span class="oe-corner bl"></span><span class="oe-corner br"></span>
+      <svg id="orbiteye-wordmark" class="oe-wordmark-svg" viewBox="0 0 1700 280" aria-hidden="true">
+      <path class="oe-line oe-layer oe-k2" data-g="0" data-c="0" data-k="-2" style="--k:-2" d="M159.3 252.2Q137.1 252.2 120.5 242.6Q103.9 233 94.7 215.5Q85.5 198 85.5 174.8V115.2Q85.5 91.9 94.7 74.4Q103.9 57 120.5 47.4Q137.1 37.8 159.3 37.8Q181.6 37.8 198.2 47.4Q214.8 57 223.9 74.4Q233.1 91.9 233.1 115.2V174.8Q233.1 198 223.9 215.5Q214.8 233 198.2 242.6Q181.6 252.2 159.3 252.2Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="0" data-c="0" data-k="-1" style="--k:-1" d="M159.3 252.2Q137.1 252.2 120.5 242.6Q103.9 233 94.7 215.5Q85.5 198 85.5 174.8V115.2Q85.5 91.9 94.7 74.4Q103.9 57 120.5 47.4Q137.1 37.8 159.3 37.8Q181.6 37.8 198.2 47.4Q214.8 57 223.9 74.4Q233.1 91.9 233.1 115.2V174.8Q233.1 198 223.9 215.5Q214.8 233 198.2 242.6Q181.6 252.2 159.3 252.2Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="0" data-c="0" data-k="0" style="--k:0" d="M159.3 252.2Q137.1 252.2 120.5 242.6Q103.9 233 94.7 215.5Q85.5 198 85.5 174.8V115.2Q85.5 91.9 94.7 74.4Q103.9 57 120.5 47.4Q137.1 37.8 159.3 37.8Q181.6 37.8 198.2 47.4Q214.8 57 223.9 74.4Q233.1 91.9 233.1 115.2V174.8Q233.1 198 223.9 215.5Q214.8 233 198.2 242.6Q181.6 252.2 159.3 252.2Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="0" data-c="0" data-k="1" style="--k:1" d="M159.3 252.2Q137.1 252.2 120.5 242.6Q103.9 233 94.7 215.5Q85.5 198 85.5 174.8V115.2Q85.5 91.9 94.7 74.4Q103.9 57 120.5 47.4Q137.1 37.8 159.3 37.8Q181.6 37.8 198.2 47.4Q214.8 57 223.9 74.4Q233.1 91.9 233.1 115.2V174.8Q233.1 198 223.9 215.5Q214.8 233 198.2 242.6Q181.6 252.2 159.3 252.2Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="0" data-c="0" data-k="2" style="--k:2" d="M159.3 252.2Q137.1 252.2 120.5 242.6Q103.9 233 94.7 215.5Q85.5 198 85.5 174.8V115.2Q85.5 91.9 94.7 74.4Q103.9 57 120.5 47.4Q137.1 37.8 159.3 37.8Q181.6 37.8 198.2 47.4Q214.8 57 223.9 74.4Q233.1 91.9 233.1 115.2V174.8Q233.1 198 223.9 215.5Q214.8 233 198.2 242.6Q181.6 252.2 159.3 252.2Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="0" data-c="1" data-k="-2" style="--k:-2" d="M159.3 223.1Q179.1 223.1 191 210.1Q202.9 197.1 202.9 175.8V114.2Q202.9 92.7 191 79.8Q179.1 66.9 159.3 66.9Q139.7 66.9 127.7 79.8Q115.7 92.7 115.7 114.2V175.8Q115.7 197.1 127.7 210.1Q139.7 223.1 159.3 223.1Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="0" data-c="1" data-k="-1" style="--k:-1" d="M159.3 223.1Q179.1 223.1 191 210.1Q202.9 197.1 202.9 175.8V114.2Q202.9 92.7 191 79.8Q179.1 66.9 159.3 66.9Q139.7 66.9 127.7 79.8Q115.7 92.7 115.7 114.2V175.8Q115.7 197.1 127.7 210.1Q139.7 223.1 159.3 223.1Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="0" data-c="1" data-k="0" style="--k:0" d="M159.3 223.1Q179.1 223.1 191 210.1Q202.9 197.1 202.9 175.8V114.2Q202.9 92.7 191 79.8Q179.1 66.9 159.3 66.9Q139.7 66.9 127.7 79.8Q115.7 92.7 115.7 114.2V175.8Q115.7 197.1 127.7 210.1Q139.7 223.1 159.3 223.1Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="0" data-c="1" data-k="1" style="--k:1" d="M159.3 223.1Q179.1 223.1 191 210.1Q202.9 197.1 202.9 175.8V114.2Q202.9 92.7 191 79.8Q179.1 66.9 159.3 66.9Q139.7 66.9 127.7 79.8Q115.7 92.7 115.7 114.2V175.8Q115.7 197.1 127.7 210.1Q139.7 223.1 159.3 223.1Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="0" data-c="1" data-k="2" style="--k:2" d="M159.3 223.1Q179.1 223.1 191 210.1Q202.9 197.1 202.9 175.8V114.2Q202.9 92.7 191 79.8Q179.1 66.9 159.3 66.9Q139.7 66.9 127.7 79.8Q115.7 92.7 115.7 114.2V175.8Q115.7 197.1 127.7 210.1Q139.7 223.1 159.3 223.1Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="1" data-c="0" data-k="-2" style="--k:-2" d="M317.6 161.2V133.2H389.3Q402.1 133.2 409.9 124.2Q417.7 115.2 417.7 100.5Q417.7 85.8 409.9 76.8Q402.1 67.9 389.3 67.9H317.6V39.9H388.1Q406.5 39.9 420.2 47.4Q433.9 55 441.5 68.6Q449.1 82.2 449.1 100.5Q449.1 118.7 441.4 132.4Q433.8 146 420.1 153.6Q406.5 161.2 388.1 161.2Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="1" data-c="0" data-k="-1" style="--k:-1" d="M317.6 161.2V133.2H389.3Q402.1 133.2 409.9 124.2Q417.7 115.2 417.7 100.5Q417.7 85.8 409.9 76.8Q402.1 67.9 389.3 67.9H317.6V39.9H388.1Q406.5 39.9 420.2 47.4Q433.9 55 441.5 68.6Q449.1 82.2 449.1 100.5Q449.1 118.7 441.4 132.4Q433.8 146 420.1 153.6Q406.5 161.2 388.1 161.2Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="1" data-c="0" data-k="0" style="--k:0" d="M317.6 161.2V133.2H389.3Q402.1 133.2 409.9 124.2Q417.7 115.2 417.7 100.5Q417.7 85.8 409.9 76.8Q402.1 67.9 389.3 67.9H317.6V39.9H388.1Q406.5 39.9 420.2 47.4Q433.9 55 441.5 68.6Q449.1 82.2 449.1 100.5Q449.1 118.7 441.4 132.4Q433.8 146 420.1 153.6Q406.5 161.2 388.1 161.2Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="1" data-c="0" data-k="1" style="--k:1" d="M317.6 161.2V133.2H389.3Q402.1 133.2 409.9 124.2Q417.7 115.2 417.7 100.5Q417.7 85.8 409.9 76.8Q402.1 67.9 389.3 67.9H317.6V39.9H388.1Q406.5 39.9 420.2 47.4Q433.9 55 441.5 68.6Q449.1 82.2 449.1 100.5Q449.1 118.7 441.4 132.4Q433.8 146 420.1 153.6Q406.5 161.2 388.1 161.2Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="1" data-c="0" data-k="2" style="--k:2" d="M317.6 161.2V133.2H389.3Q402.1 133.2 409.9 124.2Q417.7 115.2 417.7 100.5Q417.7 85.8 409.9 76.8Q402.1 67.9 389.3 67.9H317.6V39.9H388.1Q406.5 39.9 420.2 47.4Q433.9 55 441.5 68.6Q449.1 82.2 449.1 100.5Q449.1 118.7 441.4 132.4Q433.8 146 420.1 153.6Q406.5 161.2 388.1 161.2Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="1" data-c="1" data-k="-2" style="--k:-2" d="M304.8 250V39.9H334.2V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="1" data-c="1" data-k="-1" style="--k:-1" d="M304.8 250V39.9H334.2V250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="1" data-c="1" data-k="0" style="--k:0" d="M304.8 250V39.9H334.2V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="1" data-c="1" data-k="1" style="--k:1" d="M304.8 250V39.9H334.2V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="1" data-c="1" data-k="2" style="--k:2" d="M304.8 250V39.9H334.2V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="1" data-c="2" data-k="-2" style="--k:-2" d="M422.9 250 374.8 154.7 404.1 148 457.9 250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="1" data-c="2" data-k="-1" style="--k:-1" d="M422.9 250 374.8 154.7 404.1 148 457.9 250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="1" data-c="2" data-k="0" style="--k:0" d="M422.9 250 374.8 154.7 404.1 148 457.9 250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="1" data-c="2" data-k="1" style="--k:1" d="M422.9 250 374.8 154.7 404.1 148 457.9 250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="1" data-c="2" data-k="2" style="--k:2" d="M422.9 250 374.8 154.7 404.1 148 457.9 250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="2" data-c="0" data-k="-2" style="--k:-2" d="M538.9 250V222.7H595.8Q619.2 222.7 629 213.7Q638.7 204.8 638.7 190.2V189.8Q638.7 174.2 630.4 164.9Q622.1 155.5 603 155.5H538.9V129H603Q619.4 129 627.7 121.2Q636 113.5 636 98.6Q636 82.9 626.7 75.1Q617.5 67.3 599 67.3H538.9V40H604.3Q635.4 40 650.6 55.5Q665.7 70.9 665.7 96.9Q665.7 112.6 656.5 125.7Q647.2 138.8 627.5 142.4Q647 145.3 657.7 159.6Q668.5 173.9 668.5 192.4V192.8Q668.5 218.5 651.9 234.3Q635.3 250 606.8 250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="2" data-c="0" data-k="-1" style="--k:-1" d="M538.9 250V222.7H595.8Q619.2 222.7 629 213.7Q638.7 204.8 638.7 190.2V189.8Q638.7 174.2 630.4 164.9Q622.1 155.5 603 155.5H538.9V129H603Q619.4 129 627.7 121.2Q636 113.5 636 98.6Q636 82.9 626.7 75.1Q617.5 67.3 599 67.3H538.9V40H604.3Q635.4 40 650.6 55.5Q665.7 70.9 665.7 96.9Q665.7 112.6 656.5 125.7Q647.2 138.8 627.5 142.4Q647 145.3 657.7 159.6Q668.5 173.9 668.5 192.4V192.8Q668.5 218.5 651.9 234.3Q635.3 250 606.8 250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="2" data-c="0" data-k="0" style="--k:0" d="M538.9 250V222.7H595.8Q619.2 222.7 629 213.7Q638.7 204.8 638.7 190.2V189.8Q638.7 174.2 630.4 164.9Q622.1 155.5 603 155.5H538.9V129H603Q619.4 129 627.7 121.2Q636 113.5 636 98.6Q636 82.9 626.7 75.1Q617.5 67.3 599 67.3H538.9V40H604.3Q635.4 40 650.6 55.5Q665.7 70.9 665.7 96.9Q665.7 112.6 656.5 125.7Q647.2 138.8 627.5 142.4Q647 145.3 657.7 159.6Q668.5 173.9 668.5 192.4V192.8Q668.5 218.5 651.9 234.3Q635.3 250 606.8 250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="2" data-c="0" data-k="1" style="--k:1" d="M538.9 250V222.7H595.8Q619.2 222.7 629 213.7Q638.7 204.8 638.7 190.2V189.8Q638.7 174.2 630.4 164.9Q622.1 155.5 603 155.5H538.9V129H603Q619.4 129 627.7 121.2Q636 113.5 636 98.6Q636 82.9 626.7 75.1Q617.5 67.3 599 67.3H538.9V40H604.3Q635.4 40 650.6 55.5Q665.7 70.9 665.7 96.9Q665.7 112.6 656.5 125.7Q647.2 138.8 627.5 142.4Q647 145.3 657.7 159.6Q668.5 173.9 668.5 192.4V192.8Q668.5 218.5 651.9 234.3Q635.3 250 606.8 250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="2" data-c="0" data-k="2" style="--k:2" d="M538.9 250V222.7H595.8Q619.2 222.7 629 213.7Q638.7 204.8 638.7 190.2V189.8Q638.7 174.2 630.4 164.9Q622.1 155.5 603 155.5H538.9V129H603Q619.4 129 627.7 121.2Q636 113.5 636 98.6Q636 82.9 626.7 75.1Q617.5 67.3 599 67.3H538.9V40H604.3Q635.4 40 650.6 55.5Q665.7 70.9 665.7 96.9Q665.7 112.6 656.5 125.7Q647.2 138.8 627.5 142.4Q647 145.3 657.7 159.6Q668.5 173.9 668.5 192.4V192.8Q668.5 218.5 651.9 234.3Q635.3 250 606.8 250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="2" data-c="1" data-k="-2" style="--k:-2" d="M521.6 250V40H550.9V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="2" data-c="1" data-k="-1" style="--k:-1" d="M521.6 250V40H550.9V250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="2" data-c="1" data-k="0" style="--k:0" d="M521.6 250V40H550.9V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="2" data-c="1" data-k="1" style="--k:1" d="M521.6 250V40H550.9V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="2" data-c="1" data-k="2" style="--k:2" d="M521.6 250V40H550.9V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="3" data-c="0" data-k="-2" style="--k:-2" d="M766 40V250H736.5V40Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="3" data-c="0" data-k="-1" style="--k:-1" d="M766 40V250H736.5V40Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="3" data-c="0" data-k="0" style="--k:0" d="M766 40V250H736.5V40Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="3" data-c="0" data-k="1" style="--k:1" d="M766 40V250H736.5V40Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="3" data-c="0" data-k="2" style="--k:2" d="M766 40V250H736.5V40Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="4" data-c="0" data-k="-2" style="--k:-2" d="M872.5 250V57.2H901.9V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="4" data-c="0" data-k="-1" style="--k:-1" d="M872.5 250V57.2H901.9V250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="4" data-c="0" data-k="0" style="--k:0" d="M872.5 250V57.2H901.9V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="4" data-c="0" data-k="1" style="--k:1" d="M872.5 250V57.2H901.9V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="4" data-c="0" data-k="2" style="--k:2" d="M872.5 250V57.2H901.9V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="4" data-c="1" data-k="-2" style="--k:-2" d="M813.1 68V40H961.3V68Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="4" data-c="1" data-k="-1" style="--k:-1" d="M813.1 68V40H961.3V68Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="4" data-c="1" data-k="0" style="--k:0" d="M813.1 68V40H961.3V68Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="4" data-c="1" data-k="1" style="--k:1" d="M813.1 68V40H961.3V68Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="4" data-c="1" data-k="2" style="--k:2" d="M813.1 68V40H961.3V68Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="0" data-k="-2" style="--k:-2" d="M1111.8 250V40H1141.3V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="0" data-k="-1" style="--k:-1" d="M1111.8 250V40H1141.3V250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="6" data-c="0" data-k="0" style="--k:0" d="M1111.8 250V40H1141.3V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="0" data-k="1" style="--k:1" d="M1111.8 250V40H1141.3V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="0" data-k="2" style="--k:2" d="M1111.8 250V40H1141.3V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="1" data-k="-2" style="--k:-2" d="M1126.1 250V222H1246.7V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="1" data-k="-1" style="--k:-1" d="M1126.1 250V222H1246.7V250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="6" data-c="1" data-k="0" style="--k:0" d="M1126.1 250V222H1246.7V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="1" data-k="1" style="--k:1" d="M1126.1 250V222H1246.7V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="1" data-k="2" style="--k:2" d="M1126.1 250V222H1246.7V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="2" data-k="-2" style="--k:-2" d="M1126.1 159.7V131.7H1230.8V159.7Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="2" data-k="-1" style="--k:-1" d="M1126.1 159.7V131.7H1230.8V159.7Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="6" data-c="2" data-k="0" style="--k:0" d="M1126.1 159.7V131.7H1230.8V159.7Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="2" data-k="1" style="--k:1" d="M1126.1 159.7V131.7H1230.8V159.7Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="2" data-k="2" style="--k:2" d="M1126.1 159.7V131.7H1230.8V159.7Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="3" data-k="-2" style="--k:-2" d="M1126.1 68V40H1246.7V68Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="3" data-k="-1" style="--k:-1" d="M1126.1 68V40H1246.7V68Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="6" data-c="3" data-k="0" style="--k:0" d="M1126.1 68V40H1246.7V68Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="6" data-c="3" data-k="1" style="--k:1" d="M1126.1 68V40H1246.7V68Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="6" data-c="3" data-k="2" style="--k:2" d="M1126.1 68V40H1246.7V68Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="7" data-c="0" data-k="-2" style="--k:-2" d="M1439.7 40 1375.7 164.6V250H1346.3V164.6L1282.3 40H1315.1L1361 134.7L1406.9 40Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="7" data-c="0" data-k="-1" style="--k:-1" d="M1439.7 40 1375.7 164.6V250H1346.3V164.6L1282.3 40H1315.1L1361 134.7L1406.9 40Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="7" data-c="0" data-k="0" style="--k:0" d="M1439.7 40 1375.7 164.6V250H1346.3V164.6L1282.3 40H1315.1L1361 134.7L1406.9 40Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="7" data-c="0" data-k="1" style="--k:1" d="M1439.7 40 1375.7 164.6V250H1346.3V164.6L1282.3 40H1315.1L1361 134.7L1406.9 40Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="7" data-c="0" data-k="2" style="--k:2" d="M1439.7 40 1375.7 164.6V250H1346.3V164.6L1282.3 40H1315.1L1361 134.7L1406.9 40Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="0" data-k="-2" style="--k:-2" d="M1485.4 250V40H1514.8V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="0" data-k="-1" style="--k:-1" d="M1485.4 250V40H1514.8V250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="8" data-c="0" data-k="0" style="--k:0" d="M1485.4 250V40H1514.8V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="0" data-k="1" style="--k:1" d="M1485.4 250V40H1514.8V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="0" data-k="2" style="--k:2" d="M1485.4 250V40H1514.8V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="1" data-k="-2" style="--k:-2" d="M1499.7 250V222H1620.3V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="1" data-k="-1" style="--k:-1" d="M1499.7 250V222H1620.3V250Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="8" data-c="1" data-k="0" style="--k:0" d="M1499.7 250V222H1620.3V250Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="1" data-k="1" style="--k:1" d="M1499.7 250V222H1620.3V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="1" data-k="2" style="--k:2" d="M1499.7 250V222H1620.3V250Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="2" data-k="-2" style="--k:-2" d="M1499.7 159.7V131.7H1604.4V159.7Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="2" data-k="-1" style="--k:-1" d="M1499.7 159.7V131.7H1604.4V159.7Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="8" data-c="2" data-k="0" style="--k:0" d="M1499.7 159.7V131.7H1604.4V159.7Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="2" data-k="1" style="--k:1" d="M1499.7 159.7V131.7H1604.4V159.7Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="2" data-k="2" style="--k:2" d="M1499.7 159.7V131.7H1604.4V159.7Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="3" data-k="-2" style="--k:-2" d="M1499.7 68V40H1620.3V68Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="3" data-k="-1" style="--k:-1" d="M1499.7 68V40H1620.3V68Z"/>
+      <path class="oe-line oe-layer oe-k0" data-g="8" data-c="3" data-k="0" style="--k:0" d="M1499.7 68V40H1620.3V68Z"/>
+      <path class="oe-line oe-layer oe-k1" data-g="8" data-c="3" data-k="1" style="--k:1" d="M1499.7 68V40H1620.3V68Z"/>
+      <path class="oe-line oe-layer oe-k2" data-g="8" data-c="3" data-k="2" style="--k:2" d="M1499.7 68V40H1620.3V68Z"/>
+      </svg>
+    </div>
+    <div class="oe-ruler"><span class="oe-cursor"></span></div>
+    <div class="oe-ruler-scale" aria-hidden="true"><span>000°</span><span>090°</span><span>180°</span><span>270°</span><span>360°</span></div>
+    <div class="oe-progress-wrap">
+      <div class="oe-progress-track"><div id="startup-bar-fill" class="oe-progress-fill"></div></div>
+      <div class="oe-progress-meta">
+        <span class="oe-state" id="startup-status-text">正在校准字形轮廓…</span>
+        <span><span id="startup-pct">0</span>%</span>
       </div>
-      <div class="startup-title">
-        <span>O</span><span>R</span><span>B</span><span>I</span><span>T</span>
-        <span class="startup-space"></span>
-        <span>E</span><span>Y</span><span>E</span>
-      </div>
-      <div class="startup-cap">太空遥测仪表盘 · SPACE TELEMETRY</div>
-      <div class="startup-pct"><span id="startup-pct">0</span><span class="pct-sign">%</span></div>
-      <div class="startup-status"><span class="status-blink"></span><span id="startup-status-text">等待遥测数据流...</span></div>
     </div>
   </div>
 </div>
-
-<button id="guide-toggle" onclick="toggleGuide()">?</button>
+<button id="guide-toggle" onclick="toggleGuide()" aria-label="操作教程" aria-expanded="false">?</button>
 <div id="guide-panel">
   <h4>📖 操作教程 — OrbitEye</h4>
   <div class="section">⌨️ 页面导航</div>
   <div class="item"><span class="key"><span class="tag key">1 / 2</span></span><span class="desc">切换到遥测 / 太阳系页面</span></div>
-  <div class="item"><span class="key"><span class="tag key">Ctrl + R</span></span><span class="desc">强制刷新全部遥测数据</span></div>
+  <div class="item"><span class="key"><span class="tag key">刷新按钮</span></span><span class="desc">点击报头「刷新数据」重新拉取全部遥测（Ctrl + R 为浏览器刷新整页）</span></div>
   <div class="item"><span class="key"><span class="tag mouse">左侧导航栏</span></span><span class="desc">点击 DS / SS 按钮切换页面</span></div>
   <div class="section">📡 遥测仪表盘（Page 0 · TELEMETRY）</div>
   <div class="item"><span class="desc" style="color:var(--dim);">左上 — 3D 地球仪：实时 ISS 位置 + 与澳门连线 + 轨道曲线</span></div>
@@ -197,42 +591,65 @@
 
 <!-- ═══════════ PAGE 0: TELEMETRY ═══════════ -->
 <div class="pg on" id="pg-0">
-  <div style="padding:6px 8px 0 8px;">
-    <header class="dash-header">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <svg width="30" height="30" viewBox="0 0 28 28"><circle cx="14" cy="14" r="12" fill="none" stroke="var(--primary)" stroke-width="1.4" opacity=".7"/><circle cx="14" cy="14" r="4" fill="var(--primary)" opacity=".9"/></svg>
-        <div>
-          <div class="dash-brand">OrbitEye</div>
-          <div class="dash-sub">太空遥测仪表盘 · v1.0</div>
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div id="clk" style="font-family:var(--mono);font-size:12px;color:#fff;letter-spacing:1px;font-variant-numeric:tabular-nums;"></div>
-        <span style="font-size:9px;color:var(--dim);">HKT</span>
-        <span class="head-divider"></span>
-        <span style="width:7px;height:7px;background:var(--good);border-radius:50%;display:inline-block;"></span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--good);letter-spacing:2px;">SYS NOMINAL</span>
-        <button onclick="refreshAll()" class="btn" style="padding:6px 13px;">REFRESH</button>
-      </div>
-    </header>
-    <div class="section-divider"><span>即时遥测数据 · REAL-TIME TELEMETRY</span></div>
-  </div>
 
-  <div class="dashboard-grid">
+  <!-- ══ MASTHEAD：品牌报头，确立视觉重心 ══ -->
+  <header class="masthead">
+    <svg class="mh-orbit" viewBox="0 0 330 330" aria-hidden="true">
+      <circle class="o1" cx="165" cy="165" r="150"/>
+      <circle class="o5" cx="165" cy="165" r="140"/>
+      <ellipse class="o2" cx="165" cy="165" rx="150" ry="150"/>
+      <circle class="o4" cx="165" cy="165" r="116"/>
+      <g class="o-sat"><circle class="o3" cx="290" cy="100" r="3.4"/></g>
+      <g class="o-sat2"><circle class="o3" cx="165" cy="49" r="2.2" opacity=".6"/></g>
+    </svg>
+    <div class="mh-l">
+      <div class="mh-eyebrow"><span class="mh-pulse"></span>DEEP SPACE TELEMETRY NETWORK <i>/</i> 深空遥测网络</div>
+      <h1 class="mh-title">Orbit<span>Eye</span></h1>
+      <div class="mh-sub">实时轨道 <b>·</b> 空间环境 <b>·</b> 深空观测 <i>/</i> 统一态势面板</div>
+      <div class="mh-seq"><span class="bar"></span>OE / SEQ 001 <span class="hl">·</span> ALL SYSTEMS NOMINAL</div>
+    </div>
+    <div class="mh-r">
+      <div class="mh-clock"><span id="clk">--:--:--</span><em>HKT · UTC+8</em></div>
+      <span class="mh-div"></span>
+      <div class="mh-sys"><span class="mh-led"></span>SYS NOMINAL</div>
+      <button onclick="refreshAll()" class="mh-btn">刷新数据 <span>↗</span></button>
+    </div>
+  </header>
+
+  <!-- ══ FOCUS ZONE：常驻焦点 ══ -->
+  <div class="zone-label"><span class="zl-idx">01</span><span class="zl-txt">即时遥测 <i>FOCUS TELEMETRY</i></span><span class="zl-line"></span><span class="zl-live"><b></b>LIVE</span></div>
+  <div class="dashboard-grid focus-grid">
     <!-- 1. 3D地球追踪 globe -->
-    <div class="pnl corner globe-cell overflow-hidden border-wave">
+    <div class="pnl corner globe-cell overflow-hidden border-wave" id="globe-cell">
       <div class="pt"><span>地球 3D 遥测追踪</span><span class="src-tag">ISS Now</span></div>
       <div style="height:calc(100% - 34px);position:relative;"><div id="globe-ct" style="width:100%;height:100%;"></div>
-        <div style="position:absolute;bottom:6px;left:6px;right:6px;background:rgba(2,10,24,.9);padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:var(--mono);">
-          <span class="d">ISS坐标:</span><span id="gl-pos" class="text-white font-bold">--</span>
-          <span style="color:var(--dim);margin:0 8px;">|</span><span class="d">距观测点:</span><span id="gl-dst" class="w font-bold">--</span>
+        <div class="scanline"></div>
+        <div class="globe-hud" id="globe-hud" aria-hidden="true">
+          <div class="gh-label">TRACKING <b>RING</b> / AZ-EL<br>LIVE VECTOR · WGS84</div>
+          <svg viewBox="0 0 200 200">
+            <circle class="gh-ring" cx="100" cy="100" r="88"/>
+            <circle class="gh-ring" cx="100" cy="100" r="76" stroke-dasharray="1 5" opacity=".16"/>
+            <g class="gh-ticks" id="gh-ticks"></g>
+            <text class="gh-card" x="100" y="20" text-anchor="middle">N</text>
+            <text class="gh-card" x="184" y="103" text-anchor="middle">E</text>
+            <text class="gh-card" x="100" y="187" text-anchor="middle">S</text>
+            <text class="gh-card" x="16" y="103" text-anchor="middle">W</text>
+            <g class="gh-cursor" id="gh-cursor">
+              <line class="gh-cursor-line" x1="100" y1="8" x2="100" y2="26"/>
+              <circle class="gh-cursor-dot" cx="100" cy="6" r="2.4"/>
+            </g>
+          </svg>
+        </div>
+        <div id="globe-telemetry" style="position:absolute;bottom:6px;left:6px;right:6px;background:rgba(2,10,24,.9);padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-family:var(--mono);display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;">
+          <span class="d gl-long">ISS坐标:</span><span id="gl-pos" class="text-white font-bold">--</span>
+          <span style="color:var(--dim);margin:0 4px;" class="gl-long">|</span><span class="d gl-long">距观测点:</span><span id="gl-dst" class="w font-bold">--</span>
         </div>
       </div>
     </div>
     <!-- 2. 国际空间站 ISS -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="iss-panel">
-      <div class="pt"><span>国际空间站 ISS 轨道</span><span id="iss-tag" class="src-tag">实时</span></div>
-      <div class="p-3"><div id="iss-loading" class="shimmer text-[10px] d py-2">接收 ISS 遥测数据...</div>
+    <div class="pnl corner tilt border-wave" id="iss-panel">
+      <div class="pt"><span>国际空间站 ISS 轨道</span><span id="iss-tag" class="src-tag">ISS Now</span></div>
+      <div class="p-3"><div id="iss-loading" class="shimmer text-[10px] d py-2">接收 ISS 遥测数据…</div>
       <div id="iss-content" class="hidden space-y-2">
         <div class="bg-black/40 p-2.5 border border-[var(--border)] space-y-1 text-[11px] rounded">
           <p class="flex justify-between"><span class="l">纬度 / 经度:</span><span class="text-white font-bold"><span id="iss-lat">--</span>° <span id="iss-lon">--</span>°</span></p>
@@ -244,46 +661,30 @@
         </div>
         <div id="iss-pass" class="text-[10px] hidden"></div>
         <div id="iss-pass-detail" class="hidden mt-2 border-t border-[var(--border)] pt-2 space-y-1">
-          <p class="text-[8px] tracking-wider" style="color:var(--label);">📡 过境窗口预测</p>
+          <p class="text-[8px] tracking-wider" style="color:var(--label);">过境窗口预测</p>
           <div class="space-y-1 max-h-[100px] overflow-y-auto" id="iss-pass-list"></div>
           <p class="flex justify-between text-[9px]"><span class="d">当前距离:</span><span id="iss-pass-dist" class="w">--</span></p>
         </div>
       </div></div>
     </div>
-    <!-- 3. 航天发射（合并：SpaceX最新 + 即将发射） -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="launch-panel">
-      <div class="pt"><span>航天发射任务</span><span class="src-tag">SpaceDevs</span></div>
-      <div class="p-3"><div id="launch-loading" class="shimmer text-[10px] d py-2">获取发射数据...</div>
-      <div id="launch-content" class="hidden space-y-2">
-        <div class="bg-black/40 p-2.5 border border-[var(--border)] rounded">
-          <span class="text-[8px] d block tracking-wider">最新任务</span>
-          <h3 id="sx-name" class="text-sm font-bold text-white tracking-wide mt-0.5">--</h3>
-          <p class="flex justify-between text-[10px] mt-1"><span class="l">发射时间:</span><span id="sx-date" class="text-gray-300">--</span></p>
-          <div class="bg-black/30 p-1.5 mt-1.5 text-[10px] text-gray-400 border border-[var(--border)] h-12 overflow-y-auto rounded"><p id="sx-details">--</p></div>
-        </div>
-        <div>
-          <span class="text-[8px] d block tracking-wider mb-1.5">即将发射</span>
-          <div class="space-y-1 max-h-[120px] overflow-y-auto text-[10px]" id="launch-list"></div>
-        </div>
-      </div></div>
-    </div>
-    <!-- 4. 天体影像 Space-Body -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="space-panel">
-      <div class="pt"><span>深空天体影像</span><select id="planet-select" class="sel text-[9px]"><option value="earth">🌍 地球</option><option value="mars">🔴 火星</option><option value="moon">🌙 月球</option></select><span class="src-tag">NASA EPIC</span></div>
-      <div class="p-3"><div id="space-loading" class="shimmer text-[10px] d py-2">下载天体影像...</div>
-      <div id="space-content" class="hidden space-y-2">
-        <div class="overflow-hidden border border-[var(--border)] bg-black relative rounded" style="min-height:155px;">
-          <div id="img-spinner" class="absolute inset-0 flex items-center justify-center d text-[10px] z-0">解码中...</div>
-          <img id="space-img" src="" alt="" class="w-full h-auto object-cover relative z-10 opacity-0 transition duration-700 rounded" onload="this.classList.remove('opacity-0');document.getElementById('img-spinner').classList.add('hidden');" onerror="this.src='https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?w=500';">
-        </div>
-        <p class="text-[10px] border-b border-gray-800/40 pb-1 flex justify-between"><span class="l">拍摄时间:</span><span id="space-date" class="text-gray-300">--</span></p>
-        <p class="text-[10px] text-emerald-400 leading-relaxed" id="space-cap">--</p>
-      </div></div>
-    </div>
+  </div>
+
+  <!-- ══ WORKSPACE ZONE：次要数据按主题收纳 ══ -->
+  <div class="zone-label zone-label--ws"><span class="zl-idx">02</span><span class="zl-txt">专项数据 <i>SPECIALIZED FEEDS</i></span><span class="zl-line"></span><span class="zl-count">3 组 · 9 项数据源</span></div>
+  <div class="ws-tabs" role="tablist" aria-label="数据分区">
+    <button class="ws-tab on" id="tab-env" role="tab" aria-selected="true" aria-controls="pane-env" data-ws="env">环境与观测 <span>03</span></button>
+    <button class="ws-tab" id="tab-deep" role="tab" aria-selected="false" aria-controls="pane-deep" data-ws="deep">深空图鉴 <span>04</span></button>
+    <button class="ws-tab" id="tab-mission" role="tab" aria-selected="false" aria-controls="pane-mission" data-ws="mission">任务与资讯 <span>02</span></button>
+    <span class="ws-ind"></span>
+  </div>
+  <div class="ws-stage">
+  <!-- PANES: 环境与观测 -->
+  <div class="ws-pane on" id="pane-env" data-ws="env" role="tabpanel" aria-labelledby="tab-env" tabindex="0">
+  <div class="dashboard-grid ws-grid">
     <!-- 5. 地面环境 Weather -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="weather-panel">
-      <div class="pt"><span>地面大气环境</span><select id="city-select" class="sel text-[9px]"><optgroup label="🇨🇳 大中华"><option value="澳门">🇲🇴 澳门</option><option value="香港">🇭🇰 香港</option><option value="台北">🇹🇼 台北</option><option value="广州">广州</option><option value="深圳">深圳</option><option value="北京">北京</option><option value="上海">上海</option><option value="成都">成都</option><option value="拉萨">拉萨</option><option value="乌鲁木齐">乌鲁木齐</option></optgroup><optgroup label="🌏 亚洲"><option value="东京">🇯🇵 东京</option><option value="首尔">🇰🇷 首尔</option><option value="新加坡">🇸🇬 新加坡</option><option value="曼谷">🇹🇭 曼谷</option><option value="迪拜">🇦🇪 迪拜</option><option value="新德里">🇮🇳 新德里</option></optgroup><optgroup label="🇪🇺 欧洲"><option value="伦敦">🇬🇧 伦敦</option><option value="巴黎">🇫🇷 巴黎</option><option value="柏林">🇩🇪 柏林</option><option value="莫斯科">🇷🇺 莫斯科</option></optgroup><optgroup label="🌎 美洲"><option value="纽约">🇺🇸 纽约</option><option value="洛杉矶">🇺🇸 洛杉矶</option><option value="多伦多">🇨🇦 多伦多</option><option value="圣保罗">🇧🇷 圣保罗</option></optgroup><optgroup label="🌏 大洋洲 · 非洲"><option value="悉尼">🇦🇺 悉尼</option><option value="开普敦">🇿🇦 开普敦</option></optgroup></select><span class="src-tag">Open-Meteo</span></div>
-      <div class="p-3"><div id="weather-loading" class="shimmer text-[10px] d py-2">读取大气数据...</div>
+    <div class="pnl corner tilt border-wave" id="weather-panel">
+      <div class="pt"><span>地面大气环境</span><select id="city-select" class="sel text-[9px]"><optgroup label="大中华"><option value="澳门">澳门</option><option value="香港">香港</option><option value="台北">台北</option><option value="广州">广州</option><option value="深圳">深圳</option><option value="北京">北京</option><option value="上海">上海</option><option value="成都">成都</option><option value="拉萨">拉萨</option><option value="乌鲁木齐">乌鲁木齐</option></optgroup><optgroup label="亚洲"><option value="东京">东京</option><option value="首尔">首尔</option><option value="新加坡">新加坡</option><option value="曼谷">曼谷</option><option value="迪拜">迪拜</option><option value="新德里">新德里</option></optgroup><optgroup label="欧洲"><option value="伦敦">伦敦</option><option value="巴黎">巴黎</option><option value="柏林">柏林</option><option value="莫斯科">莫斯科</option></optgroup><optgroup label="美洲"><option value="纽约">纽约</option><option value="洛杉矶">洛杉矶</option><option value="多伦多">多伦多</option><option value="圣保罗">圣保罗</option></optgroup><optgroup label="大洋洲 · 非洲"><option value="悉尼">悉尼</option><option value="开普敦">开普敦</option></optgroup></select><span class="src-tag">Open-Meteo</span></div>
+      <div class="p-3"><div id="weather-loading" class="shimmer text-[10px] d py-2">读取大气数据…</div>
       <div id="weather-content" class="hidden space-y-3">
         <div class="grid grid-cols-2 gap-2">
           <div class="bg-black/40 p-2.5 border border-[var(--border)] text-center rounded"><span class="text-[10px] l block uppercase tracking-wider">天气</span><p class="text-xl font-bold w"><span id="w-status">--</span></p></div>
@@ -297,9 +698,9 @@
       </div></div>
     </div>
     <!-- 6. 太空威胁（合并：太阳风暴 + 近地小行星） -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="threat-panel">
+    <div class="pnl corner tilt border-wave" id="threat-panel">
       <div class="pt"><span>太空威胁监测</span><span class="src-tag">NOAA · NASA</span></div>
-      <div class="p-3"><div id="threat-loading" class="shimmer text-[10px] d py-2">扫描太空威胁...</div>
+      <div class="p-3"><div id="threat-loading" class="shimmer text-[10px] d py-2">扫描太空威胁…</div>
       <div id="threat-content" class="hidden space-y-2">
         <div class="bg-black/40 p-2 border border-[var(--border)] rounded text-[11px]">
           <p class="flex justify-between"><span class="l">太阳风状态:</span><span id="st-note-short" class="text-white font-bold">--</span></p>
@@ -311,45 +712,10 @@
         </div>
       </div></div>
     </div>
-  </div>
-
-  <div class="section-divider" style="margin:16px 8px 0 8px;"><span>深空探索与天文 · DEEP SPACE &amp; ASTRONOMY</span></div>
-
-  <div class="dashboard-grid">
-    <!-- 7. APOD 每日天文图 -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="apod-panel">
-      <div class="pt"><span>NASA 每日天文图</span><span class="src-tag">APOD</span></div>
-      <div class="p-3"><div id="apod-loading" class="shimmer text-[10px] d py-2">接收 NASA APOD...</div>
-      <div id="apod-content" class="hidden space-y-2">
-        <div class="overflow-hidden border border-[var(--border)] bg-black rounded" style="max-height:200px;">
-          <img id="apod-img" src="" alt="" class="w-full h-auto object-cover opacity-0 transition duration-700 rounded" onload="this.classList.remove('opacity-0')" onerror="this.src='https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=600'">
-        </div>
-        <h3 id="apod-title" class="text-xs font-bold text-white leading-tight">--</h3>
-        <p id="apod-expl" class="text-[10px] text-gray-400 leading-relaxed max-h-12 overflow-y-auto">--</p>
-      </div></div>
-    </div>
-    <!-- 8. 火星天气 -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="mars-weather-panel">
-      <div class="pt"><span>火星地表天气</span><span class="src-tag">Curiosity</span></div>
-      <div class="p-3"><div id="mars-weather-loading" class="shimmer text-[10px] d py-2">接收火星遥测...</div>
-      <div id="mars-weather-content" class="hidden space-y-2"><div id="mars-sol-list" class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]"></div></div></div>
-    </div>
-    <!-- 9. 航天新闻 -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="news-panel">
-      <div class="pt"><span>全球航天新闻</span><span class="src-tag">Spaceflight News</span></div>
-      <div class="p-3"><div id="news-loading" class="shimmer text-[10px] d py-2">获取最新头条...</div>
-      <div id="news-content" class="hidden"><div class="space-y-2 max-h-[200px] overflow-y-auto" id="news-list"></div></div></div>
-    </div>
-    <!-- 10. 系外行星 -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="exo-panel">
-      <div class="pt"><span>系外行星档案</span><span class="src-tag">NASA Archive</span></div>
-      <div class="p-3"><div id="exo-loading" class="shimmer text-[10px] d py-2">浏览系外行星档案...</div>
-      <div id="exo-content" class="hidden"><div class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]" id="exo-list"></div></div></div>
-    </div>
     <!-- 11. 天文观测（合并：观星预报 + 月相月历） -->
-    <div class="pnl corner tilt lg:col-span-2 border-wave" id="obs-panel">
-      <div class="pt"><span>天文观测站</span><span id="obs-grade-badge" class="text-[8px] border px-1.5 py-0.5 font-mono tracking-wider rounded" style="color:var(--good);border-color:rgba(52,211,153,.4);">--</span></div>
-      <div class="p-3"><div id="obs-loading" class="shimmer text-[10px] d py-2">分析观测条件...</div>
+    <div class="pnl corner tilt border-wave" id="obs-panel">
+      <div class="pt"><span>天文观测站</span><span class="src-tag">本地星历</span><span id="obs-grade-badge" class="text-[8px] border px-1.5 py-0.5 font-mono tracking-wider rounded" style="color:var(--good);border-color:rgba(52,211,153,.4);">--</span></div>
+      <div class="p-3"><div id="obs-loading" class="shimmer text-[10px] d py-2">分析观测条件…</div>
       <div id="obs-content" class="hidden space-y-2">
         <div class="grid grid-cols-2 gap-2 text-[10px]">
           <div class="bg-black/40 p-2 border border-[var(--border)] rounded text-center">
@@ -365,17 +731,103 @@
         <div class="text-[10px] text-gray-400"><span class="text-sky-400">可见行星:</span> <span id="obs-planets">--</span></div>
         <div id="obs-tip" class="text-[9px] text-gray-500 italic"></div>
         <div class="border-t border-[var(--border)] pt-2">
-          <span class="text-[8px] d block tracking-wider mb-1">📅 月相预报</span>
+          <span class="text-[8px] d block tracking-wider mb-1">月相预报</span>
           <div class="grid grid-cols-3 gap-1 text-[9px] text-center" id="mooncal-forecast"></div>
+          <div class="illum-chart" id="illum-chart">
+            <div class="ic-head"><span>月面照度 / 未来 6 周</span><b>ILLUMINATION %</b></div>
+          </div>
         </div>
       </div></div>
     </div>
   </div>
+  </div>
+
+  <!-- PANES: 深空图鉴 -->
+  <div class="ws-pane" id="pane-deep" data-ws="deep" role="tabpanel" aria-labelledby="tab-deep" tabindex="0">
+  <div class="dashboard-grid ws-grid">
+    <!-- 7. APOD 每日天文图 -->
+    <div class="pnl corner tilt border-wave" id="apod-panel">
+      <div class="pt"><span>NASA 每日天文图</span><span class="src-tag">APOD</span></div>
+      <div class="p-3"><div id="apod-loading" class="shimmer text-[10px] d py-2">接收 NASA APOD…</div>
+      <div id="apod-content" class="hidden apod-layout">
+        <div class="apod-media">
+          <img id="apod-img" src="" alt="NASA 每日天文图" class="opacity-0 transition duration-700" onload="this.classList.remove('opacity-0')" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/static/textures/mars.jpg';}">
+        </div>
+        <div class="apod-copy">
+          <div class="apod-kicker">NASA · ASTRONOMY PICTURE OF THE DAY</div>
+          <h3 id="apod-title">--</h3>
+          <p id="apod-expl">--</p>
+        </div>
+      </div></div>
+    </div>
+    <!-- 4. 深空天体影像 Space-Body -->
+    <div class="pnl corner tilt border-wave" id="space-panel">
+      <div class="pt"><span>深空天体影像</span><select id="planet-select" class="sel text-[9px]"><option value="earth">地球</option><option value="mars">火星</option><option value="moon">月球</option></select><span class="src-tag">NASA EPIC</span></div>
+      <div class="p-3"><div id="space-loading" class="shimmer text-[10px] d py-2">下载天体影像…</div>
+      <div id="space-content" class="hidden space-y-2">
+        <div class="overflow-hidden border border-[var(--border)] bg-black relative rounded" style="min-height:155px;">
+          <div id="img-spinner" class="absolute inset-0 flex items-center justify-center d text-[10px] z-0">解码中…</div>
+          <img id="space-img" src="" alt="深空天体影像" class="w-full h-auto object-cover relative z-10 opacity-0 transition duration-700 rounded" onload="this.classList.remove('opacity-0');document.getElementById('img-spinner').classList.add('hidden');" onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/static/textures/earth_atmos_2048.jpg';}">
+        </div>
+        <p class="text-[10px] border-b border-gray-800/40 pb-1 flex justify-between"><span class="l">拍摄时间:</span><span id="space-date" class="text-gray-300">--</span></p>
+        <p class="text-[10px] text-emerald-400 leading-relaxed" id="space-cap">--</p>
+      </div></div>
+    </div>
+    <!-- 8. 火星天气 -->
+    <div class="pnl corner tilt border-wave" id="mars-weather-panel">
+      <div class="pt"><span>火星地表天气</span><span class="src-tag">Curiosity</span></div>
+      <div class="p-3"><div id="mars-weather-loading" class="shimmer text-[10px] d py-2">接收火星遥测…</div>
+      <div id="mars-weather-content" class="hidden space-y-2"><div id="mars-sol-list" class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]"></div></div></div>
+    </div>
+    <!-- 10. 系外行星 -->
+    <div class="pnl corner tilt border-wave" id="exo-panel">
+      <div class="pt"><span>系外行星档案</span><span class="src-tag">NASA Archive</span></div>
+      <div class="p-3"><div id="exo-loading" class="shimmer text-[10px] d py-2">浏览系外行星档案…</div>
+      <div id="exo-content" class="hidden"><div class="space-y-1 max-h-[200px] overflow-y-auto text-[10px]" id="exo-list"></div></div></div>
+    </div>
+  </div>
+  </div>
+
+  <!-- PANES: 任务与资讯 -->
+  <div class="ws-pane" id="pane-mission" data-ws="mission" role="tabpanel" aria-labelledby="tab-mission" tabindex="0">
+  <div class="dashboard-grid ws-grid">
+    <!-- 3. 航天发射（合并：SpaceX最新 + 即将发射） -->
+    <div class="pnl corner tilt border-wave" id="launch-panel">
+      <div class="pt"><span>航天发射任务</span><span class="src-tag">SpaceDevs</span></div>
+      <div class="p-3"><div id="launch-loading" class="shimmer text-[10px] d py-2">获取发射数据…</div>
+      <div id="launch-content" class="hidden space-y-2">
+        <div class="bg-black/40 p-2.5 border border-[var(--border)] rounded">
+          <span class="text-[8px] d block tracking-wider">最新任务</span>
+          <h3 id="sx-name" class="text-sm font-bold text-white tracking-wide mt-0.5">--</h3>
+          <p class="flex justify-between text-[10px] mt-1"><span class="l">发射时间:</span><span id="sx-date" class="text-gray-300">--</span></p>
+          <div class="bg-black/30 p-1.5 mt-1.5 text-[10px] text-gray-400 border border-[var(--border)] h-12 overflow-y-auto rounded"><p id="sx-details">--</p></div>
+        </div>
+        <div>
+          <span class="text-[8px] d block tracking-wider mb-1.5">即将发射</span>
+          <div class="space-y-1 max-h-[120px] overflow-y-auto text-[10px]" id="launch-list"></div>
+        </div>
+      </div></div>
+    </div>
+    <!-- 9. 航天新闻 -->
+    <div class="pnl corner tilt border-wave" id="news-panel">
+      <div class="pt"><span>全球航天新闻</span><span class="src-tag">Spaceflight News</span></div>
+      <div class="p-3"><div id="news-loading" class="shimmer text-[10px] d py-2">获取最新头条…</div>
+      <div id="news-content" class="hidden"><div class="space-y-2 overflow-y-auto" id="news-list"></div></div></div>
+    </div>
+  </div>
+  </div>
+  </div><!-- /ws-stage -->
 
   <div class="status-bar">
-    <span class="d">数据源: NASA · NOAA · SpaceDevs · Spaceflight News · Open-Meteo · DeepSeek</span>
-    <span id="bt-demo" style="color:var(--warn);display:none;">📡 离线演示</span>
-    <span id="health-dot" style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-size:9px;font-family:var(--mono);" title="系统状态">
+    <span class="d">数据源: NASA · NOAA · SpaceDevs · Spaceflight News · Open-Meteo</span>
+    <span class="origin-legend" title="每个面板标题栏的数据来源标记">
+      <span class="d" style="margin-right:2px;">数据来源</span>
+      <i class="origin origin--live">实时</i>
+      <i class="origin origin--archive">归档</i>
+      <i class="origin origin--demo">演示</i>
+      <i class="origin origin--local">推算</i>
+    </span>
+    <span id="health-dot" style="display:inline-flex;align-items:center;gap:4px;margin-left:auto;font-size:9px;font-family:var(--mono);" title="系统状态">
       <span id="health-led" style="width:6px;height:6px;border-radius:50%;background:#f87171;display:inline-block;"></span>
       <span id="health-text" style="color:var(--label);">检查中</span>
     </span>
@@ -392,7 +844,7 @@
       Full 3D solar system with hand gesture control via MediaPipe Hands.<br>
       <span style="color:var(--dim);">Palm move = Rotate &bull; Swipe = Change planet &bull; Pinch = Info</span>
     </p>
-    <a href="/solar" target="_blank" class="launch-btn">&#9654; LAUNCH SOLAR SYSTEM</a>
+    <a href="/solar" target="_blank" rel="noopener noreferrer" class="launch-btn">▶ LAUNCH SOLAR SYSTEM</a>
     <p class="hint">Opens in new tab &bull; Requires camera permission for gesture control</p>
   </div>
 </div>

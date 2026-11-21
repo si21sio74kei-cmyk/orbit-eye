@@ -130,6 +130,7 @@ project/
       css/
         datav.css        Dashboard + startup screen styles
         solar.css        Solar system page styles
+        tailwind-lite.css  Local atomic utility classes (no CDN)
       js/
         dashboard.js     Dashboard core application logic
         solar.js         Solar system 3D + gesture code
@@ -137,8 +138,15 @@ project/
       textures/          Planet texture maps (14 files)
   docs/
     制作手记.md           Dev notes (first-person, Chinese)
+  .workbuddy/
+    memory/              Project work log (not deployed)
+    qa/                  Local QA artifacts (not deployed)
+      scripts/           Regression scripts (runnable, see below)
+      shots/             Viewport screenshots
+      reports/           API / browser check results
   requirements.txt       Python dependencies (3 packages)
   vercel.json            Vercel deploy config (catch-all rewrite -> api/index)
+  .vercelignore          Excludes dev artifacts from the serverless bundle
   README.md              This documentation
 ```
 

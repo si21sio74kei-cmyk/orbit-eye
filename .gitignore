@@ -37,3 +37,6 @@ Desktop.ini
 *.log
 srv_out.log
 srv_err.log
+
+# WorkBuddy workspace data (memory + QA artifacts) — not part of delivery
+.workbuddy/

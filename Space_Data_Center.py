@@ -578,6 +578,23 @@ def api_health():
         "_source": "local",
     })
 
+# 粗定位兜底：浏览器拒绝精确定位时，服务端带 UA 查询 IP 归属地并缓存，
+# 避免前端直连免费 IP API 触发 429 与跨域/控制台报错。
+GEOIP_CACHE = {"data": None, "time": 0}
+@app.route('/api/space/geoip')
+def api_geoip():
+    now = time.time()
+    if GEOIP_CACHE["data"] and (now - GEOIP_CACHE["time"]) < 3600:
+        return jsonify(GEOIP_CACHE["data"])
+    d = safe_fetch("https://ipwho.is/", timeout=6)
+    if d and d.get("success") and isinstance(d.get("latitude"), (int, float)):
+        result = {"latitude": d["latitude"], "longitude": d["longitude"],
+                  "city": d.get("city") or d.get("region") or "IP 定位", "_source": "live"}
+        GEOIP_CACHE.update({"data": result, "time": now})
+        return jsonify(result)
+    return jsonify({"latitude": MACAO_LAT, "longitude": MACAO_LON,
+                    "city": "澳门（默认）", "_source": "local"})
+
 # [Dashboard 聚合 — 并行拉取全部数据]
 @app.route('/api/space/dashboard')
 def api_dashboard():

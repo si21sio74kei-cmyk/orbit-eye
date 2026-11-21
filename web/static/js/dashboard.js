@@ -190,7 +190,12 @@ document.getElementById('mo-link').style.cssText = 'color:#7dd3fc;font-weight:no
 const n = d.pass_predictions[0];
 document.getElementById('iss-pass').innerHTML = 'NEXT PASS: <span class="w">'+escapeHTML(n.start_in_minutes)+' min</span> ('+escapeHTML(n.duration_minutes)+' min)';
 document.getElementById('iss-pass').classList.remove('hidden');    }    markDemo('iss', SRC_KIND[d._source]==='demo');    markSource('iss-panel', d._source);
-markSource('globe-cell', d._source);    updGlobe(parseFloat(d.iss_position.latitude),parseFloat(d.iss_position.longitude),d.macao_link?.distance_km||0);    showContent('iss');  } catch(e) {    
+markSource('globe-cell', d._source);
+const issLat=parseFloat(d.iss_position.latitude), issLon=parseFloat(d.iss_position.longitude);
+window._lastISS={lat:issLat,lon:issLon};
+updGlobe(issLat,issLon,d.macao_link?.distance_km||0);
+focusGlobeOnPoints(); // 若定位先于 ISS 到达，数据到位后补一次转向
+showContent('iss');  } catch(e) {    
 const ce = document.getElementById('iss-content');    if (ce && ce.classList.contains('hidden')) showError('iss','TELEMETRY LOST');  }}
 async function fetchSpaceBody() {  try {    
 const le = document.getElementById('space-loading');    le.innerHTML = 'TUNING…'; le.classList.add('shimmer'); le.classList.remove('hidden');
@@ -361,6 +366,72 @@ async function fetchHealth() { try {
   } }
 function refreshAll() { fetchISS(); fetchLaunches(); fetchSpaceBody(); fetchWeather(); fetchThreats(); fetchAPOD(); fetchMarsWeather(); fetchNews(); fetchExoplanets(); fetchObserving(); fetchHealth(); fetchISSPassDetail(); }
 
+// ── 观测点定位：浏览器精确定位 → IP 兜底 → 澳门默认 ──
+// OBS 是红点（用户所在地点）的唯一真相；绿点 ISS 走 real API，二者独立。
+let OBS = {lat:22.1989, lon:113.5491, source:'default', label:'澳门（默认）'};
+window._lastISS = null;
+// 球面大圆距离（Haversine），用于「距观测点」真实公里数
+function haversineKm(lat1,lon1,lat2,lon2){
+  const R=6371, rad=Math.PI/180;
+  const dLat=(lat2-lat1)*rad, dLon=(lon2-lon1)*rad;
+  const a=Math.sin(dLat/2)**2 + Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(a)));
+}
+// 球面大圆插值（slerp）：让连线贴合地球，两端精确落在标记点上
+function greatCirclePoints(a,b,r,segments){
+  const dot=THREE.MathUtils.clamp(a.dot(b),-1,1), omega=Math.acos(dot), pts=[];
+  if(omega<1e-4) return [a.clone().multiplyScalar(r), b.clone().multiplyScalar(r)];
+  const so=Math.sin(omega);
+  for(let i=0;i<=segments;i++){ const t=i/segments;
+    pts.push(a.clone().multiplyScalar(Math.sin((1-t)*omega)/so)
+      .add(b.clone().multiplyScalar(Math.sin(t*omega)/so)).normalize().multiplyScalar(r)); }
+  return pts;
+}
+function applyObserver(){
+  if(GR && GR.mg) GR.mg.position.copy(llv(OBS.lat,OBS.lon,1.44));
+  const el=document.getElementById('obs-src'); if(el) el.textContent=OBS.label;
+  if(window._lastISS) updGlobe(window._lastISS.lat,window._lastISS.lon);
+  focusGlobeOnPoints();
+}
+// 首次定位成功后，把相机平滑转向「观测点与 ISS 的中点」，让红绿点都进入视野
+let _globeFocused=false;
+function focusGlobeOnPoints(){
+  if(_globeFocused || !GR || !window._lastISS) return;
+  if(OBS.source==='default') return; // 用默认澳门点时不抢用户手动视角
+  _globeFocused=true;
+  const {cam,ctrl}=GR;
+  // 对准观测点本身：红点始终落在地球正中，绿点若在背面则透视显示在轮廓边缘（诚实反映真实方位）
+  const a=llv(OBS.lat,OBS.lon,1).normalize();
+  const mid=a.multiplyScalar(3.8);
+  const from=cam.position.clone(), t0=performance.now(), dur=900;
+  (function step(now){
+    const k=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-k,3);
+    cam.position.copy(from.clone().lerp(mid,e)); ctrl.update();
+    if(k<1) requestAnimationFrame(step);
+  })(t0);
+}
+function initObserver(){
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      pos=>{ OBS={lat:pos.coords.latitude,lon:pos.coords.longitude,source:'gps',label:'设备定位'}; applyObserver(); },
+      ()=>fetchIPLocation(),
+      {enableHighAccuracy:false,timeout:8000,maximumAge:600000}
+    );
+  } else fetchIPLocation();
+}
+async function fetchIPLocation(){
+  try{
+    // 走同源后端（带缓存 + UA），避免直连免费 IP API 触发 429 / 跨域报错
+    const r=await fetch(API_URL+'/geoip',{signal:AbortSignal.timeout(6000)});
+    const d=await r.json();
+    if(isFinite(d.latitude) && isFinite(d.longitude)){
+      OBS={lat:d.latitude,lon:d.longitude,source:(d._source==='live'?'ip':'default'),label:(d.city||'IP 定位')};
+      applyObserver(); return;
+    }
+  }catch(e){}
+  applyObserver(); // 最终兜底：澳门默认
+}
+
 // ── 3D Globe ─────────────────────────────────────
 let GR = null;
 function llv(lat,lon,r) {  
@@ -378,9 +449,13 @@ const earth = new THREE.Mesh(eg,em); sc.add(earth);  new THREE.TextureLoader().l
 const gg = new THREE.SphereGeometry(1.43,64,64);
 const gm = new THREE.ShaderMaterial({vertexShader:'varying vec3 n;varying vec3 p;void main(){n=normalize(normalMatrix*normal);p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'precision highp float;varying vec3 n;varying vec3 p;void main(){float i=pow(.65-dot(n,vec3(0,0,1)),3.);gl_FragColor=vec4(0,.6,1.,1.)*i*.4;}',side:THREE.FrontSide,transparent:true,blending:THREE.AdditiveBlending});  sc.add(new THREE.Mesh(gg,gm));  sc.add(new THREE.AmbientLight(0x334466,2.5));
 const sl = new THREE.DirectionalLight(0xffffff,2); sl.position.set(5,1,3); sc.add(sl);
-const mg = new THREE.Group(); mg.position.copy(llv(22.1989,113.5491,1.41)); mg.add(new THREE.Mesh(new THREE.SphereGeometry(.03,16,16),new THREE.MeshBasicMaterial({color:0xf87171}))); sc.add(mg);
-const ig = new THREE.Group(); ig.add(new THREE.Mesh(new THREE.SphereGeometry(.024,12,12),new THREE.MeshBasicMaterial({color:0x34d399}))); sc.add(ig);
-const al = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x38bdf8,transparent:true,opacity:.8,depthTest:true,depthWrite:false})); sc.add(al);
+// 标记点关闭深度测试：背面的红/绿点也能透视看到，始终「方便查看」
+const mg = new THREE.Group(); mg.position.copy(llv(OBS.lat,OBS.lon,1.44));
+const mgDot=new THREE.Mesh(new THREE.SphereGeometry(.032,16,16),new THREE.MeshBasicMaterial({color:0xf87171,depthTest:false,transparent:true})); mgDot.renderOrder=4; mg.add(mgDot); sc.add(mg);
+const ig = new THREE.Group();
+const igDot=new THREE.Mesh(new THREE.SphereGeometry(.026,12,12),new THREE.MeshBasicMaterial({color:0x34d399,depthTest:false,transparent:true})); igDot.renderOrder=4; ig.add(igDot); sc.add(ig);
+// 连线：贴球面的实体实线管（非 1px 细线），开启深度测试 → 背面弧段被地球自然遮挡，只留沿地球轮廓的实线圆弧
+const al = new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial({color:0x8fd4ff})); sc.add(al);
 (function anim(){
   if(document.hidden || curPg!==0){ setTimeout(anim, 120); return; }
   requestAnimationFrame(anim); ctrl.update(); rn.render(sc,cam);
@@ -389,12 +464,21 @@ window._resumeGlobe = () => { if(!GR) return; const ct=document.getElementById('
 window.addEventListener('resize',()=>{
 const w=ct.clientWidth,h=ct.clientHeight;cam.aspect=w/h;cam.updateProjectionMatrix();rn.setSize(w,h);});  GR = {sc,earth,mg,ig,al,cam,ctrl,rn};}
 function updGlobe(lat,lon,dist) {  if(!GR) return;
-const {ig,al} = GR, ip = llv(lat,lon,1.43);  ig.position.copy(ip);
-const mp = llv(22.1989,113.5491,1.43), mid = new THREE.Vector3().addVectors(mp,ip).normalize().multiplyScalar(1.50);
-const cv = new THREE.QuadraticBezierCurve3(mp.clone(),mid,ip.clone());  al.geometry.dispose(); al.geometry = new THREE.BufferGeometry().setFromPoints(cv.getPoints(72));
+const {ig,al,mg} = GR;
+// 绿点：ISS 实时经纬度，精确贴合球面（半径 1.44）
+const ip = llv(lat,lon,1.44); ig.position.copy(ip);
+// 红点：用户观测点，保持与初始化一致
+if(mg) mg.position.copy(llv(OBS.lat,OBS.lon,1.44));
+// 连线：大圆插值贴合球面，两端精确落在红/绿点；做成实体细管实线，背面段由地球遮挡，正面呈沿轮廓的圆弧
+const mp=llv(OBS.lat,OBS.lon,1).normalize(), iu=ip.clone().normalize();
+const pts=greatCirclePoints(mp,iu,1.445,96);
+const curve=new THREE.CatmullRomCurve3(pts);
+al.geometry.dispose(); al.geometry=new THREE.TubeGeometry(curve,96,0.006,6,false);
 const gp=document.getElementById('gl-pos');
 gp.textContent = lat.toFixed(2)+' deg, '+lon.toFixed(2)+' deg';
-countUp(document.getElementById('gl-dst'), dist, ' km', 0);
+// 距离：以用户观测点为基准的球面大圆距离（替代原先写死的澳门距离）
+const realDist = Math.round(haversineKm(OBS.lat,OBS.lon,lat,lon));
+countUp(document.getElementById('gl-dst'), isFinite(realDist)?realDist:dist, ' km', 0);
 updateGlobeHUD(lon);
 // 重启脉冲动画（remove→reflow→add），仅在非 reduced-motion 下生效
 if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
@@ -566,6 +650,7 @@ function finishStartup(){
   },800);
 }
 try{initGlobe();}catch(e){}
+initObserver();
 
 refreshAll();
 document.getElementById('city-select').addEventListener('change',fetchWeather);

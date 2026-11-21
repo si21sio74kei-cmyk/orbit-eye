@@ -554,12 +554,22 @@ const labelDiv = document.createElement('div');
 labelDiv.style.cssText = 'position:fixed;inset:0;z-index:4;pointer-events:none;';
 document.body.appendChild(labelDiv);
 const planetLabels = ssObjs.map(o => {
+  // 标签分两层：外层只做定位（transform translate3d，无过渡 → 不拖尾/不虚影）；
+  // 内层负责聚焦态的缩放/辉光/透明度（走 transition → 切换平滑、不再瞬间硬跳）。
   const lbl = document.createElement('div');
-  lbl.style.cssText = 'position:absolute;left:0;top:0;font-family:var(--title);font-size:13px;letter-spacing:2px;transform:translate3d(-9999px,-9999px,0);transition:opacity .3s;white-space:nowrap;will-change:transform;';
-  lbl.textContent = o.name;
-  // 星球专属本色只需要设一次，不必每帧重写
-  lbl.__tc = '#' + PC[o.type].toString(16).padStart(6, '0');
-  lbl.style.color = lbl.__tc;
+  lbl.style.cssText = 'position:absolute;left:0;top:0;transform:translate3d(-9999px,-9999px,0);will-change:transform;';
+  const inner = document.createElement('span');
+  inner.style.cssText = 'display:inline-block;font-family:var(--title);font-size:13px;letter-spacing:2px;'
+    + 'white-space:nowrap;transform:translate(-50%,-50%) scale(.92);transform-origin:center;'
+    + 'will-change:transform,opacity;'
+    + 'transition:transform .3s var(--ease),opacity .3s var(--ease),text-shadow .3s var(--ease);';
+  inner.textContent = o.name;
+  const tc = '#' + PC[o.type].toString(16).padStart(6, '0');
+  inner.style.color = tc;
+  inner.style.textShadow = `0 0 3px ${tc}55, 0 0 6px ${tc}22`;
+  lbl.__inner = inner;
+  lbl.__tc = tc;
+  lbl.appendChild(inner);
   labelDiv.appendChild(lbl);
   return lbl;
 });
@@ -1506,35 +1516,10 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
       });
     }
     
-    const lbl = planetLabels[i];
-    if (lbl) {
-      // 🚀【3D空间头顶对齐】：动态获取当前星球网格网格半径，将文字定位点精准提升至星球上空，绝不冲突
-      const labelPos = _tmpLabel.copy(o.mesh.position);
-      const radius = P[i] ? P[i].s : 1.0;
-      labelPos.y += radius * 1.3 + 0.15; // 根据每颗球身大小，按比例向上推高
-      
-      const wp = labelPos.project(ssCam);
-      const lx = (wp.x * .5 + .5) * innerWidth;
-      const ly = (-wp.y * .5 + .5) * innerHeight;
-      // 用 transform 定位而不是 left/top：transition 只走合成线程，不会每帧触发布局重算。
-      // 9 个标签 × 7 个样式属性每帧写，在开摄像头的机器上会明显拖慢主线程 → 掉帧 → 看着像抖。
-      lbl.style.transform = `translate3d(${lx.toFixed(1)}px,${ly.toFixed(1)}px,0) translate(-50%,-50%)`;
-
-      const isFocus = (i === focus);
-      if (lbl.__focus !== isFocus) {
-        lbl.__focus = isFocus;
-        lbl.style.fontSize = isFocus ? '20px' : '12px';
-        lbl.style.fontWeight = isFocus ? '900' : '400';
-        lbl.style.textShadow = isFocus
-          ? `0 0 10px ${lbl.__tc}, 0 0 20px ${lbl.__tc}`
-          : `0 0 4px ${lbl.__tc}80`;
-      }
-      // 卡片激活时隐藏标签（卡片已显示星球名，避免重叠）
-      const vis = isFocus
-        ? ((wp.z > 1 || window._cardActive) ? '0' : '1')
-        : (wp.z > 1 ? '0' : '.55');
-      if (lbl.__vis !== vis) { lbl.__vis = vis; lbl.style.opacity = vis; }
-    }
+    // 🏷️ 标签投影已移到本帧相机更新之后（见文件下方）——不能再在这里投影。
+    // 原因：此处 ssCam.matrixWorldInverse 还是「上一帧 render」留下的旧矩阵，而星球本体
+    // 在本帧 render 时用的是更新后的新相机。相机静止时两者一致，切换星球时相机快速移动，
+    // 标签就会慢一帧（实测偏差最高 57px），肉眼看到的就是「名字抖动 / 有虚影”。
   });
   const time = performance.now() * 0.0005;
   if (!camOn) {
@@ -1599,6 +1584,42 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
   ssCam.position.x += Math.sin(time) * 0.005;
   ssCam.position.y += Math.cos(time * 0.8) * 0.003;
   ssCam.lookAt(window._camTarget);
+
+  // 🏷️ 行星标签：必须在相机【本帧】更新完、且矩阵同步后再投影。
+  // 相机 lookAt/位移后 matrixWorldInverse 尚未刷新，这里手动 updateMatrixWorld() 一次，
+  // 保证标签和星球本体用【同一帧】的相机矩阵 —— 切换星球时不再慢一帧、不再有虚影。
+  ssCam.updateMatrixWorld();
+  ssObjs.forEach((o, i) => {
+    const lbl = planetLabels[i];
+    if (!lbl) return;
+    const labelPos = _tmpLabel.copy(o.mesh.position);
+    const radius = P[i] ? P[i].s : 1.0;
+    labelPos.y += radius * 1.3 + 0.15;
+    const wp = labelPos.project(ssCam);
+    const lx = (wp.x * .5 + .5) * innerWidth;
+    const ly = (-wp.y * .5 + .5) * innerHeight;
+    // 外层只定位（无 transition → 跟随相机零滞后）；toFixed(1) 抑制亚像素抖动
+    lbl.style.transform = `translate3d(${lx.toFixed(1)}px,${ly.toFixed(1)}px,0)`;
+
+    const isFocus = (i === focus);
+    if (lbl.__focus !== isFocus) {
+      lbl.__focus = isFocus;
+      const inner = lbl.__inner, tc = lbl.__tc;
+      // 聚焦态平滑放大 + 辉光增强，走 .3s transition，不再 20↔12px 瞬间硬跳产生"抖一下"
+      inner.style.transform = isFocus
+        ? 'translate(-50%,-50%) scale(1.55)'
+        : 'translate(-50%,-50%) scale(.92)';
+      inner.style.textShadow = isFocus
+        ? `0 0 10px ${tc}, 0 0 20px ${tc}bb`
+        : `0 0 3px ${tc}55, 0 0 6px ${tc}22`;
+      inner.style.fontWeight = isFocus ? '900' : '400';
+    }
+    // 卡片激活时隐藏聚焦标签（卡片已显示星球名，避免重叠）
+    const vis = isFocus
+      ? ((wp.z > 1 || window._cardActive) ? '0' : '1')
+      : (wp.z > 1 ? '0' : '.55');
+    if (lbl.__vis !== vis) { lbl.__vis = vis; lbl.__inner.style.opacity = vis; }
+  });
 
   // 💫 流星生命週期管理 — 風暴期間觸發率暴增至 20%
   const spawnChance = window._isStormActive ? 0.20 : 0.012;

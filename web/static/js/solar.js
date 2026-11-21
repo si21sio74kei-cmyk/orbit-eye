@@ -11,6 +11,38 @@ const RING_FRAGMENT = (typeof RING_FS !== 'undefined') ? RING_FS : RING_FS_FALLB
 // showCard 请求代际号与轻量转义，防止快速切换行星时旧响应覆盖新卡片
 let cardGen = 0;
 function escHTML(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// 后端 total 是带千位分隔符的字符串（如 "27,081"），直接 Number() 会得到 0
+function parseCount(v){ const n=Number(String(v ?? '').replace(/[,\s]/g,'')); return Number.isFinite(n) ? n : 0; }
+
+// 一句话观测札记：只讲可核验、有记忆点的事实，不充当 API 数据
+const PLANET_NOTES = {
+  sun:     '太阳占太阳系总质量的约 99.8%，它的引力定义了每一条行星轨道。',
+  mercury: '水星自转一周约 58.6 个地球日，绕太阳一圈却只要 88 天——一天比一年更长。',
+  venus:   '金星自转方向与多数行星相反，站在它的地表会看到太阳从西边升起。',
+  earth:   '地球是目前唯一已知拥有稳定液态海洋与生命的行星。',
+  mars:    '火星的奥林帕斯山高约 22 公里，是太阳系已确认的最高火山。',
+  jupiter: '木星的大红斑是一场延续数百年的巨型风暴，宽度足以容纳地球。',
+  saturn:  '土星的平均密度小于水；若存在足够大的水池，它会浮在水面上。',
+  uranus:  '天王星几乎侧躺着自转，极区会经历长达约 42 年的极昼与极夜。',
+  neptune: '海王星的风速可超过 2000 km/h，是太阳系风暴最猛烈的行星之一。'
+};
+const INFO_FIELDS = ['重力','密度','半径','质量','均温','公转','自转','轴倾角','逃逸速度'];
+const INFO_CATEGORIES = ['恒星','岩石行星','气态巨行星','冰巨星'];
+function parsePlanetInfo(raw){
+  const parts = String(raw || '').split('|').map(s => s.trim()).filter(Boolean);
+  let category = '';
+  if (INFO_CATEGORIES.includes(parts[0])) category = parts.shift();
+  const facts = [];
+  parts.forEach(seg => {
+    const key = INFO_FIELDS.find(k => seg.startsWith(k));
+    if (key) { facts.push({label:key, value:seg.slice(key.length).trim()}); return; }
+    const moon = seg.match(/^(\d+)\s*颗已知卫星$/);
+    if (moon) facts.push({label:'已知卫星', value:moon[1] + ' 颗'});
+  });
+  if (!facts.length && raw) facts.push({label:'档案', value:String(raw).trim()});
+  return {category, facts};
+}
 // 電影級軌道 — 太陽半徑 3.50，所有行星軌道 > 6.0 絕不穿模（含日冕層）
 // 公转角速度 ω 由开普勒第三定律推导：T² ∝ a³ → ω ∝ 1/T ∝ a^(-1.5)，以地球(a=1AU)=1.0 为基准
 // a = 轨道半长轴(AU)，数据源 NASA Planetary Fact Sheet (nssdc.gsfc.nasa.gov)；v 由 a 动态计算，不再硬编码
@@ -693,15 +725,94 @@ function countExtendedFingers(hand){
 
 function updateUI(){ document.getElementById('st-planet').textContent=P[focus].n; }
 
+// ──────────────────────────────────────────────────────
+//  行星卡布局：横向紧凑卡，贴聚焦星球左上角（右下角靠近星球左上象限）；
+//  字体放大、间隔收紧后卡片更矮更窄，正好塞进星球上方左侧的空隙。
+//  绝不遮星球本体 / 时间流速滑条 / HUD；用真实 DOM 矩形做几何避让。
+//  不动相机、手势、任何 id。
+// ──────────────────────────────────────────────────────
+function layoutCard(sx, sy, rPx){
+  const card = document.getElementById('planet-card');
+  if(!card || !window._cardActive) return;
+  if(sx == null || sy == null){ card.style.left='-9999px'; return; }
+
+  const vw = window.innerWidth, vh = window.innerHeight;
+  card.style.width = ''; // 恢复 CSS 宽度，避免上一帧缩窄残留
+  let cw = card.offsetWidth || 480, ch = card.offsetHeight || 220;
+  const gap = 16;
+  const ctrl = document.getElementById('ctrl-panel');
+  const cr = ctrl ? ctrl.getBoundingClientRect() : null;
+  const st = document.getElementById('status-panel');
+  const sr = st ? st.getBoundingClientRect() : null;
+  const hud = document.getElementById('hud-top');
+  const hr = hud ? hud.getBoundingClientRect() : null;
+  const minTop = hr ? Math.min(vh - 10, hr.bottom + gap) : 10; // 顶部导航条下沿，卡片不得压住
+
+  function hitsCtrl(L,T){
+    return cr && L < cr.right + gap && L + cw > cr.left - gap && T < cr.bottom + gap && T + ch > cr.top - gap;
+  }
+  function hitsStatus(L,T){
+    return sr && L < sr.right + gap && L + cw > sr.left - gap && T < sr.bottom + gap && T + ch > sr.top - gap;
+  }
+
+  const ctrlBottom = (cr && cr.top > vh * 0.55);
+  const narrow = ctrlBottom || vw < 700;
+  let L, T;
+
+  if(narrow){
+    // 窄屏：卡片贴顶（HUD 导航条下方）、水平居中；星球在下方露出。状态面板在右上，缩窄卡片避让。
+    L = Math.max(10, Math.min(sx - cw / 2, vw - cw - 10));
+    T = minTop;
+    if(sr && L + cw > sr.left - 8 && sr.top < T + ch){
+      const leftAvail = Math.floor(sr.left) - 18;
+      if(leftAvail >= 300){ card.style.width = leftAvail + 'px'; cw = leftAvail; ch = card.offsetHeight || ch; L = 10; }
+    }
+  } else {
+    // 星球左上候选：卡片右边缘压在星球中心偏左处，底缘抬到星球上缘之上 gap，
+    // 视觉上卡片"挂"在星球左肩；左缘不得压到左上角控制条，故用其右缘钳制。
+    const ctrlSafe = cr ? cr.right + gap : 10;
+    const ulL = Math.max(ctrlSafe, sx - rPx * 0.35 - cw);
+    const ulT = sy - rPx - ch - gap;
+    // 候选按 preference 排序：左上 → 正上方 → 正下方；取第一个同时避开 HUD/控制条/状态面板者。
+    const cands = [
+      [ulL, ulT],
+      [sx - cw / 2, ulT],
+      [sx - cw / 2, sy + rPx + gap]
+    ];
+    let placed = false;
+    for(const [cl, ct] of cands){
+      const inView = cl >= 10 && ct >= minTop && cl + cw <= vw - 10 && ct + ch <= vh - 10;
+      if(inView && !hitsCtrl(cl, ct) && !hitsStatus(cl, ct)){ L = cl; T = ct; placed = true; break; }
+    }
+    if(!placed){
+      // 兜底：HUD 下方起步，依次避让控制条 / 状态面板
+      L = Math.max(10, sx - rPx - cw - gap);
+      T = minTop;
+      if(hitsCtrl(L,T)) T = cr.bottom + gap;
+      if(hitsStatus(L,T)) T = Math.max(T, sr.bottom + gap);
+    }
+  }
+
+  // 视口边界钳制（顶部不低于 HUD 导航条下沿）
+  L = Math.max(10, Math.min(L, vw - cw - 10));
+  T = Math.max(minTop, Math.min(T, vh - ch - 10));
+
+  card.style.position = 'fixed';
+  card.style.left = L + 'px';
+  card.style.top  = T + 'px';
+  window._cardRect = {left:L, top:T, right:L+cw, bottom:T+ch};
+  window._cardPlanet = {cx:sx, cy:sy, r:rPx};
+}
+
 function showCard(){
   const p=P[focus], c=document.getElementById('planet-card'), tc='#'+PC[p.t].toString(16).padStart(6,'0');
   const myGen = ++cardGen;
-  c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${escHTML(p.n)}</div>
-    <div style="color:#94a3b8;margin-top:14px;position:relative;">
-      <span style="display:inline-block;background:linear-gradient(90deg,transparent,rgba(56,189,248,.15),transparent);background-size:200% 100%;animation:shimmer 1.5s infinite;padding:8px 0;width:100%;">正在建立星际数据链路…</span>
-    </div>`;
-  c.style.display='block'; c.style.borderColor=tc+'60'; c.style.boxShadow=`0 24px 64px rgba(0,0,0,.9),0 0 32px ${tc}30`;
-  c.classList.add('show');
+  c.style.setProperty('--planet-tint', tc);
+  c.innerHTML=`<div class="pc-loading">
+    <div class="pc-head"><span class="pc-swatch"></span><h2 class="pc-title">${escHTML(p.n)}</h2></div>
+    <div class="pc-loading-line"><span>正在建立星际数据链路…</span></div>
+  </div>`;
+  c.style.display='block'; c.classList.add('show');
   window._cardActive = true;
 
   const baseUrl = (location.protocol==='file:') ? 'http://127.0.0.1:5500' : '';
@@ -711,13 +822,22 @@ function showCard(){
       const data = await resp.json();
       if(myGen !== cardGen) return;  // 已有更新的行星请求，丢弃旧响应
       const src = data._source || data.source || 'local';
-      c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${escHTML(data.planet || p.n)}</div>
-        <div style="color:#e2e8f0;margin-top:12px;line-height:1.8;">${escHTML(data.info || '--')}</div>
-        <div style="color:rgba(148,163,184,.55);margin-top:14px;font-size:9px;letter-spacing:1px;text-align:right;">[数据来源: ${escHTML(src)}]</div>`;
+      const {category, facts} = parsePlanetInfo(data.info);
+      const classText = category || (p.t === 'sun' ? '恒星' : '行星');
+      const note = PLANET_NOTES[p.t] || '';
+      const factHTML = facts.map(f => `<div class="pc-fact"><dt>${escHTML(f.label)}</dt><dd>${escHTML(f.value)}</dd></div>`).join('');
+      c.innerHTML=`<div class="pc-head">
+          <span class="pc-swatch" aria-hidden="true"></span>
+          <h2 class="pc-title">${escHTML(data.planet || p.n)}</h2>
+          <span class="pc-class">${escHTML(classText)}</span>
+        </div>
+        <dl class="pc-facts">${factHTML}</dl>
+        ${note ? `<div class="pc-note"><span class="pc-note-label">观测札记</span><p>${escHTML(note)}</p></div>` : ''}
+        <div class="pc-source">数据来源 · ${escHTML(src)}</div>`;
     }catch(e){
       if(myGen !== cardGen) return;
-      c.innerHTML=`<div style="font-weight:900;color:${tc};font-size:24px;text-shadow:0 0 12px ${tc};">${escHTML(p.n)}</div>
-        <div style="color:#f87171;margin-top:14px;">星际数据链路中断<br><span style="font-size:11px;color:#94a3b8;">无法连接到深空观测站服务器</span></div>`;
+      c.innerHTML=`<div class="pc-head"><span class="pc-swatch"></span><h2 class="pc-title">${escHTML(p.n)}</h2></div>
+        <div class="pc-error">星际数据链路中断<span>无法连接到深空观测站服务器</span></div>`;
     }
   })();
 }
@@ -938,29 +1058,65 @@ async function openSatMap(){
     const satData = await satR.json();
     
     const isRealTLE = tleData._source === 'celestrak';
-    const tleLabel = isRealTLE ? '🟢 CelesTrak 实时轨道' : '🟡 本地数学模拟';
-    const tleColor = isRealTLE ? '#00ff44' : '#fbbf24';
+    const tleLabel = isRealTLE ? 'CelesTrak TLE 推演' : '本地模型示意';
+    const isCached = satData._source === 'celestrak-cache';
     const isLiveSat = satData._source === 'celestrak';
-    const satSrcLabel = isLiveSat ? '🟢 实时推定' : '🟡 离线参考';
-    let listHTML = '<div style=\"color:var(--good);margin-bottom:6px;font-size:10px;\">🛰 在轨总数: <b>'+satData.total+'</b> 颗</div>';
-    if (satData.total_source) listHTML += '<div style=\"font-size:8px;color:var(--dim);margin-bottom:2px;\">'+satData.total_source+'</div>';
-    listHTML += '<div style=\"color:'+tleColor+';margin-bottom:4px;font-size:10px;\">'+tleLabel+': <b>'+tleData.sats.length+'</b> 颗 (3D渲染)</div>';
-    listHTML += '<div style=\"font-size:8px;color:var(--dim);margin-bottom:4px;\">(CelesTrak 拉取 '+satData.groups_fetched+' 组, 每2小时刷新)</div>';
-    listHTML += '<div style=\"border-top:1px solid var(--border);margin:8px 0;\"></div>';
-    listHTML += '<div style=\"font-size:8px;color:var(--label);margin-bottom:6px;\">📊 各国卫星分布 '+satSrcLabel+'</div>';
-    if (satData.countries_source) listHTML += '<div style=\"font-size:7px;color:var(--dim);margin-bottom:4px;\">'+satData.countries_source+'</div>';
-    const flagMap = {US:'🇺🇸',CN:'🇨🇳',RU:'🇷🇺',GB:'🇬🇧',JP:'🇯🇵',IN:'🇮🇳',EU:'🇪🇺',CA:'🇨🇦',KR:'🇰🇷',FR:'🇫🇷',DE:'🇩🇪',BR:'🇧🇷',AU:'🇦🇺',AE:'🇦🇪',IL:'🇮🇱',AR:'🇦🇷',TW:'🇹🇼',OT:'🌐'};
-    const totalCount = satData.countries.reduce((sum,c) => sum + (c.count||0), 0) || 1;
-    satData.countries.forEach(c => {
-      const pct = ((c.count / totalCount) * 100).toFixed(1);
-      listHTML += '<div style=\"display:flex;justify-content:space-between;font-size:9px;padding:2px 4px;color:#cbd5e1;\"><span>'+(flagMap[c.code]||'•')+' '+c.name+'</span><span style=\"color:var(--primary);\">'+c.count.toLocaleString()+' <span style=\"font-size:7px;color:var(--dim);\">('+pct+'%)</span></span></div>';
+    const isAuthoritative = satData._source === 'celestrak-satcat';
+    const satSrcLabel = isAuthoritative ? 'SATCAT 权威编目' : (isLiveSat ? '实时' : (isCached ? '缓存快照' : '离线参考'));
+    const tleSats = Array.isArray(tleData.sats) ? tleData.sats : [];
+    const countries = Array.isArray(satData.countries) ? satData.countries : [];
+    const total = parseCount(satData.total);
+    const countryTotal = countries.reduce((sum,c) => sum + parseCount(c.count), 0);
+    const pctBase = total || countryTotal || 1;
+    const notes = [];
+    if(satData.countries_source) notes.push(satData.countries_source);
+    notes.push(isAuthoritative ? '按运营国 OWNER 字段归类' : '仅覆盖已收录分组，不代表全球真实占比', '每 24 小时刷新');
+    const totalNote = isAuthoritative
+      ? 'CelesTrak SATCAT 在轨编目 · GROUP=active'
+      : (satData.total_source || '分组收录统计') + ' · 非全球在轨总数';
+    const sectionTitle = isAuthoritative ? '运营国构成' : '国别构成（推定）';
+    const sectionTag = isAuthoritative ? 'SATCAT OWNER 真实字段' : '按卫星名称归类';
+    const footText = isAuthoritative
+      ? '数量与运营国来自 CelesTrak SATCAT 权威编目（OWNER 字段，非名称推定），统计 GROUP=active 在轨目标；主视图位置在实时 TLE 不可用时由本地模型生成。'
+      : '数量来自 CelesTrak 分组收录，非全球在轨总数；国别按卫星名称关键字推定，仅供示意。主视图位置在实时 TLE 不可用时由本地模型生成。';
+    let listHTML = `<div class="sat-headline">
+      <section class="sat-summary">
+        <div class="sat-summary-label">在轨目标总数 <span class="sat-status ${(isLiveSat || isAuthoritative) ? 'live' : 'offline'}">${satSrcLabel}</span></div>
+        <div class="sat-total">${total.toLocaleString()}<span>颗</span></div>
+        <div class="sat-total-note">${escHTML(totalNote)}</div>
+      </section>
+      <section class="sat-metrics">
+        <div><span>可视化轨道目标</span><b>${tleSats.length}</b></div>
+        <div><span>位置推算来源</span><b>${escHTML(tleLabel)}</b></div>
+      </section>
+    </div>
+    <section class="sat-section">
+      <h3>${sectionTitle}<span class="sat-section-tag">${sectionTag}</span></h3>
+      <p>${escHTML(notes.join(' · '))}</p>
+      <div class="sat-bars">`;
+    countries.forEach(c => {
+      const code = String(c.code || '—').toUpperCase() === 'OT' ? 'INT' : String(c.code || '—').toUpperCase();
+      const count = parseCount(c.count);
+      const rawPct = pctBase ? (count / pctBase) * 100 : 0;
+      const pct = rawPct.toFixed(1);
+      const bar = Math.max(0, Math.min(100, rawPct)).toFixed(1);
+      listHTML += `<div class="sat-row">
+        <div class="sat-row-top">
+          <span class="sat-code">${escHTML(code)}</span>
+          <span class="sat-name">${escHTML(c.name)}</span>
+          <span class="sat-num">${count.toLocaleString()} <small>${pct}%</small></span>
+        </div>
+        <div class="sat-track"><span style="width:${bar}%"></span></div>
+      </div>`;
     });
+    listHTML += `</div></section>
+    <footer class="sat-foot">${footText}</footer>`;
     if(satActive) document.getElementById('sat-list').innerHTML = listHTML;
     
     // 🚀【核心修复2】：拿到API后，直接解析出卫星轨道模型，无缝塞入现有渲染器！
-    if(tleData.sats && tleData.sats.length > 0 && satActive) {
+    if(tleSats.length > 0 && satActive) {
       const newSats = [];
-      tleData.sats.forEach(s=>{
+      tleSats.forEach(s=>{
         try{
           if(typeof satellite!=='undefined'&&satellite.twoline2satrec){
             const r=satellite.twoline2satrec(s.tle1,s.tle2);
@@ -971,7 +1127,7 @@ async function openSatMap(){
       window._activeSats = newSats; // 数据挂载完毕，渲染循环自动接管！
     }
   }catch(e){
-    if(satActive) document.getElementById('sat-list').innerHTML='<span style=\"color:var(--warn);\">📡 离线模式 — CelesTrak API 不可用，显示本地模拟</span>';
+    if(satActive) document.getElementById('sat-list').innerHTML='<span style="color:var(--warn);">离线模式 — CelesTrak API 不可用，显示本地模拟</span>';
   }
 }
 
@@ -994,16 +1150,16 @@ function renderSatGlobe(){
 
   const glowGeo = new THREE.SphereGeometry(0.90, 48, 48);
   const glowMat = new THREE.ShaderMaterial({
-    uniforms:{c:{value:new THREE.Color(0x4488ff)},p:{value:3.0}},
+    uniforms:{c:{value:new THREE.Color(0x6cb6e8)},p:{value:3.2}},
     vertexShader:'varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-    fragmentShader:'uniform vec3 c;uniform float p;varying vec3 vN;void main(){float i=pow(1.0-max(0.0,dot(vN,vec3(0,0,1))),p);gl_FragColor=vec4(c,i*0.35);}',
+    fragmentShader:'uniform vec3 c;uniform float p;varying vec3 vN;void main(){float i=pow(1.0-max(0.0,dot(vN,vec3(0,0,1))),p);gl_FragColor=vec4(c,i*0.22);}',
     side:THREE.FrontSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false
   });
   sc.add(new THREE.Mesh(glowGeo,glowMat));
 
   [0.92, 2.0, 5.6].forEach(r => {
-    const orbGeo = new THREE.TorusGeometry(r, 0.003, 8, 128);
-    const orbMat = new THREE.MeshBasicMaterial({color:0x338855, transparent:true, opacity:0.4});
+    const orbGeo = new THREE.TorusGeometry(r, 0.0025, 8, 128);
+    const orbMat = new THREE.MeshBasicMaterial({color:0x6cb6e8, transparent:true, opacity:0.2});
     const orb = new THREE.Mesh(orbGeo, orbMat);
     orb.rotation.x = Math.PI/2;
     sc.add(orb);
@@ -1026,9 +1182,9 @@ function renderSatGlobe(){
   }
   satGeo.setAttribute('position',new THREE.BufferAttribute(posArr,3));
 
-  const satMatCore=new THREE.PointsMaterial({size:0.025,color:0x44ff88,transparent:true,opacity:0.95,blending:THREE.AdditiveBlending,depthWrite:false});
-  const satMatMid=new THREE.PointsMaterial({size:0.050,color:0x22cc66,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false});
-  const satMatOuter=new THREE.PointsMaterial({size:0.080,color:0x00ff44,transparent:true,opacity:0.25,blending:THREE.AdditiveBlending,depthWrite:false});
+  const satMatCore=new THREE.PointsMaterial({size:0.020,color:0xbfe4fa,transparent:true,opacity:0.86,blending:THREE.NormalBlending,depthWrite:false});
+  const satMatMid=new THREE.PointsMaterial({size:0.042,color:0x6cb6e8,transparent:true,opacity:0.32,blending:THREE.AdditiveBlending,depthWrite:false});
+  const satMatOuter=new THREE.PointsMaterial({size:0.070,color:0x4d8fbd,transparent:true,opacity:0.14,blending:THREE.AdditiveBlending,depthWrite:false});
   
   const pCore = new THREE.Points(satGeo, satMatCore);
   const pMid = new THREE.Points(satGeo, satMatMid);
@@ -1036,7 +1192,51 @@ function renderSatGlobe(){
   sc.add(pCore); sc.add(pMid); sc.add(pOuter);
 
   let animId = null;
-  window._satTargetDistance=4.0; window._satCurrentDistance=4.0; window._satRotationVelocity=0; window._satCurrentRotationY=0;
+  // 窄屏物理空间小：默认相机拉远让地球缩小，才能在面板下方完整放下（手势缩放基准随之适配）
+  const _narrow=(ct.clientWidth||innerWidth)<600;
+  const _initDist=_narrow?6.2:4.0;
+  window._satTargetDistance=_initDist; window._satCurrentDistance=_initDist; window._satRotationVelocity=0; window._satCurrentRotationY=0;
+  // ── 取景偏移：数据面板在右侧竖栏（窄屏在底部），让地球落在左侧约 2/3 的中央 ──
+  // 桌面/平板：面板占右 34%，地球圆心移到左侧可用区的水平中点，垂直居中，观感最自然。
+  // 窄屏：面板占底部，地球移到上半区居中。只偏移相机注视点，地球仍绕原点旋转、手势不变。
+  const _tmpF=new THREE.Vector3(), _tmpR=new THREE.Vector3(), _tmpU=new THREE.Vector3(), _UP=new THREE.Vector3(0,1,0);
+  function framing(){
+    const list=document.getElementById('sat-list');
+    const lr=list.getBoundingClientRect(), cr=ct.getBoundingClientRect();
+    const cw=cr.width||1, ch=cr.height||1;
+    const d=window._satCurrentDistance;
+    const tanH=Math.tan(45*Math.PI/180/2);
+    const Rp=(0.85/(d*tanH))*(ch/2); // 地球投影半径（像素）
+    const cx0=cw/2, cy0=ch/2;
+    const pad=16;
+    const panelLeftRel=lr.left-cr.left;   // 面板左边缘（相对画布）
+    const panelTopRel=lr.top-cr.top;      // 面板上边缘
+    const isDrawer=panelLeftRel < cw*0.4;  // 底部抽屉模式（面板横跨整宽）
+    let tx=cx0, ty=cy0;
+    if(isDrawer){
+      // 底部抽屉：地球移到上半区居中
+      const safeTop=Rp+pad;
+      ty=Math.max(safeTop, (panelTopRel-Rp-pad)/2);
+      if(ty+Rp+pad>panelTopRel) ty=Math.max(Rp*0.5, (panelTopRel-Rp-pad)/2);
+    } else {
+      // 右侧竖栏：地球圆心取左侧可用区 [pad, panelLeftRel-pad] 的中点
+      const lo=Rp+pad, hi=panelLeftRel-Rp-pad;
+      tx = hi>=lo ? (lo+hi)/2 : panelLeftRel/2;
+    }
+    // 屏幕像素位移 → 世界坐标偏移；地球右移 sx → 注视点左移，地球下移 sy → 注视点上移
+    const wpp=(2*d*tanH)/ch;
+    const wantX=-(tx-cx0)*wpp, wantY=(ty-cy0)*wpp;
+    _tmpF.set(0,0,-1).applyQuaternion(cam.quaternion); // 看向原点时的相机前向
+    _tmpR.crossVectors(_tmpF,_UP).normalize();         // 右向基
+    _tmpU.crossVectors(_tmpR,_tmpF).normalize();       // 上向基
+    const lookX=_tmpR.x*wantX+_tmpU.x*wantY;
+    const lookY=_tmpR.y*wantX+_tmpU.y*wantY;
+    const lookZ=_tmpR.z*wantX+_tmpU.z*wantY;
+    // 暴露地球投影圆与面板矩形，供验证脚本做确定性几何相交断言
+    window._satEarthScreen={cx:cr.left+tx, cy:cr.top+ty, r:Rp,
+      panel:{left:lr.left,right:lr.right,top:lr.top,bottom:lr.bottom}};
+    return [lookX,lookY,lookZ];
+  }
   function anim(){
     if(!satActive){ cancelAnimationFrame(animId); return; }
     animId = requestAnimationFrame(anim);
@@ -1047,6 +1247,9 @@ function renderSatGlobe(){
     window._satRotationVelocity *= 0.94;  // 每帧保留94%，手停后自然滑行
     cam.position.set(Math.sin(window._satCurrentRotationY)*window._satCurrentDistance, 0.5, Math.cos(window._satCurrentRotationY)*window._satCurrentDistance);
     cam.lookAt(0,0,0);
+    // 取景避让放在 lookAt 之后：基于看向原点的基向量，偏移注视点使地球移出面板
+    const look=framing();
+    cam.lookAt(look[0],look[1],look[2]);
 
     const realSats = window._activeSats || [];
     const d = new Date();
@@ -1273,6 +1476,18 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
       Math.cos(camAngle) * lockDist,
       tZoom * 0.42 * narrowK,
       Math.sin(camAngle) * lockDist, 0.06);
+
+    // 卡片跟随：贴星球左上但不遮星球 / 不挡时间流速滑条（每帧几何避让）
+    if(window._cardActive){
+      const wp = _tmpProj.set(tx, ty, tz).project(ssCam);
+      if(wp.z > 1) layoutCard(null, null);
+      else {
+        const sx = (wp.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-wp.y * 0.5 + 0.5) * window.innerHeight;
+        const rPx = (P[focus].s / (lockDist || 1)) * window.innerHeight * 0.5;
+        layoutCard(sx, sy, rPx);
+      }
+    }
   } else {
     // 🌌 2. 手势控制模式
     const f = ssObjs[focus];
@@ -1288,20 +1503,14 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
         lockDist * 0.25,
         Math.sin(camAngle) * lockDist, 0.10);
 
-      const card = document.getElementById('planet-card');
-      if (card && window._cardActive) {
+      if(window._cardActive){
         const wp = _tmpProj.set(tx, ty, tz).project(ssCam);
-        if (wp.z > 1) {
-          card.style.left = '-9999px'; // 镜头摇摄时安全隐藏
-        } else {
-          const screenX = (wp.x * 0.5 + 0.5) * window.innerWidth;
-          const screenY = (-wp.y * 0.5 + 0.5) * window.innerHeight;
-          card.style.position = 'fixed';
-          
-          const realSize = P[focus].s;
-          const planetRadiusOffset = (realSize / lockDist) * window.innerWidth * 0.3;
-          card.style.left = (screenX - 360 - planetRadiusOffset) + 'px';
-          card.style.top  = (screenY - 180 - planetRadiusOffset) + 'px';  
+        if(wp.z > 1) layoutCard(null, null);
+        else {
+          const sx = (wp.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-wp.y * 0.5 + 0.5) * window.innerHeight;
+          const rPx = (P[focus].s / (lockDist || 1)) * window.innerHeight * 0.5;
+          layoutCard(sx, sy, rPx);
         }
       }
     } else {

@@ -51,6 +51,7 @@ BASE_DIR = Path(__file__).parent
 WEB_DIR    = BASE_DIR / "web"                    # 前端页面与静态资源
 STATIC_DIR = WEB_DIR / "static"                  # /static/<path> 路由的物理目录
 SAT_CACHE_FILE = BASE_DIR / ".satellite_cache.json"  # 持久缓存，避免限流时无数据
+SATCAT_STATS_FILE = BASE_DIR / ".satcat_owners.json"  # SATCAT 权威国别聚合缓存（仅几十项，体积小）
 
 # ── 配置（从环境变量 / .env 读取，避免硬编码密钥） ──────────────
 def _load_env(path=BASE_DIR / ".env"):
@@ -743,8 +744,134 @@ def _classify_satellite(name):
                 return country
     return None
 
+# ═══════════════════════════════════════════════════
+#  SATCAT 权威国别统计（修正名称推定严重失真）
+#  数据源：CelesTrak SATCAT records.php?GROUP=active&FORMAT=json
+#  权威字段 OWNER（运营国代码）+ DECAY_DATE（在轨判定）
+#  实测样本：US 13181 / PRC 1615 / UK 700 / CIS 394 …
+# ═══════════════════════════════════════════════════
+SATCAT_URL = "https://celestrak.org/satcat/records.php?GROUP=active&FORMAT=json"
+SATCAT_TTL = 86400  # 24 小时（SATCAT 每日更新，无需高频拉取）
+
+# SATCAT OWNER 代码 → (中文名, 展示代码, 纬度, 经度)
+# 采用 SATCAT/空间编目通用代码；未列出的代码归入"其他"并保留原代码
+SATCAT_OWNER_META = {
+    "US":   ("美国",       "US", 38.9, -77.0),
+    "PRC":  ("中国",       "CN", 39.9, 116.4),
+    "CIS":  ("俄罗斯及独联体", "RU", 55.8, 37.6),
+    "UK":   ("英国",       "GB", 51.5, -0.1),
+    "JPN":  ("日本",       "JP", 35.7, 139.8),
+    "IT":   ("意大利",     "IT", 41.9, 12.6),
+    "FR":   ("法国",       "FR", 48.9, 2.3),
+    "GER":  ("德国",       "DE", 52.5, 13.4),
+    "IND":  ("印度",       "IN", 28.6, 77.2),
+    "SKOR": ("韩国",       "KR", 37.6, 127.0),
+    "ESA":  ("欧洲航天局",  "EU", 48.9, 2.3),
+    "SPN":  ("西班牙",     "ES", 40.4, -3.7),
+    "CA":   ("加拿大",     "CA", 45.4, -75.7),
+    "TURK": ("土耳其",     "TR", 39.9, 32.9),
+    "AUS":  ("澳大利亚",   "AU", -35.3, 149.1),
+    "ARGN": ("阿根廷",     "AR", -34.6, -58.4),
+    "UAE":  ("阿联酋",     "AE", 24.5, 54.4),
+    "ISRA": ("以色列",     "IL", 31.8, 35.2),
+    "NOR":  ("挪威",       "NO", 59.9, 10.8),
+    "FIN":  ("芬兰",       "FI", 60.2, 24.9),
+    "GREC": ("希腊",       "GR", 38.0, 23.7),
+    "BRZL": ("巴西",       "BR", -15.8, -47.9),
+    "MEX":  ("墨西哥",     "MX", 19.4, -99.1),
+    "SARN": ("沙特阿拉伯", "SA", 24.7, 46.7),
+    "KAZ":  ("哈萨克斯坦", "KZ", 51.2, 71.4),
+    "UKR":  ("乌克兰",     "UA", 50.5, 30.5),
+}
+# 商业/国际运营方（非国家），单独标注，避免被误读成国家
+SATCAT_ORG_CODES = {"SES", "ITSO", "O3B", "EUTE", "GLOB", "TBD", "ROC", "IRID", "MAXAR"}
+
+_SATCAT_CACHE = {"data": None, "time": 0}
+
+def _aggregate_satcat(records):
+    """把 SATCAT 记录按 OWNER 聚合成 {total, countries, source}"""
+    counts = {}
+    for s in records:
+        if s.get("DECAY_DATE"):          # 已再入 → 不计在轨
+            continue
+        owner = (s.get("OWNER") or "TBD").strip().upper()
+        counts[owner] = counts.get(owner, 0) + 1
+
+    total = sum(counts.values())
+    named, meta, orgs, other = {}, {}, {}, 0
+    for code, count in counts.items():
+        if code in SATCAT_OWNER_META:
+            cn, disp, lat, lon = SATCAT_OWNER_META[code]
+            named[cn] = named.get(cn, 0) + count
+            meta[cn] = (disp, lat, lon)
+        elif code in SATCAT_ORG_CODES:
+            orgs[code] = orgs.get(code, 0) + count
+        else:
+            other += count
+
+    countries = []
+    for cn, count in sorted(named.items(), key=lambda x: -x[1]):
+        disp, lat, lon = meta[cn]
+        countries.append({"name": cn, "code": disp, "count": count, "lat": lat, "lon": lon})
+    if orgs:
+        org_total = sum(orgs.values())
+        countries.append({"name": "商业及国际运营方", "code": "ORG", "count": org_total, "lat": 0, "lon": 0})
+    if other > 0:
+        countries.append({"name": "其他", "code": "OT", "count": other, "lat": 0, "lon": 0})
+
+    return {
+        "total": f"{total:,}",
+        "total_source": f"CelesTrak SATCAT 权威编目 · 在轨 {total:,} 个目标（ GROUP=active ）",
+        "countries_source": "SATCAT OWNER 运营国字段（真实编目，非名称推定）",
+        "countries": countries,
+        "groups_fetched": 1,
+        "_source": "celestrak-satcat",
+    }
+
+def _satcat_stats():
+    """取权威国别统计：内存 → 磁盘 → 网络；任一级成功即返回，失败返回 None"""
+    global _SATCAT_CACHE
+    now = time.time()
+    if _SATCAT_CACHE["data"] and now - _SATCAT_CACHE["time"] < SATCAT_TTL:
+        return _SATCAT_CACHE["data"]
+
+    # 磁盘缓存（跨冷启动保留，避免 Vercel 每次重新拉 5.8MB）
+    try:
+        if SATCAT_STATS_FILE.exists():
+            saved = json.loads(SATCAT_STATS_FILE.read_text(encoding="utf-8"))
+            if saved.get("data") and now - saved.get("time", 0) < SATCAT_TTL:
+                _SATCAT_CACHE = saved
+                return saved["data"]
+    except Exception:
+        pass
+
+    # 网络拉取权威编目
+    try:
+        r = requests.get(SATCAT_URL, timeout=20, headers={"User-Agent": USER_AGENT})
+        if r.status_code != 200:
+            return None
+        records = r.json()
+        if not isinstance(records, list) or len(records) < 1000:
+            return None
+        data = _aggregate_satcat(records)
+        _SATCAT_CACHE = {"data": data, "time": now}
+        try:
+            SATCAT_STATS_FILE.write_text(
+                json.dumps(_SATCAT_CACHE, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
+        return data
+    except Exception:
+        return None
+
 @app.route('/api/space/satellites')
 def api_satellites():
+    # ── 0. 权威优先：SATCAT OWNER 真实国别（解决名称推定严重失真）──
+    # 拿得到就用权威数据；拿不到（网络/限流）才降级到下方 TLE 名称推定。
+    authoritative = _satcat_stats()
+    if authoritative:
+        return jsonify(authoritative)
+
     global TLE_CACHE
     # ── 1. 优先从 TLE 内存缓存取 (最快) ──
     # BUG 修复：只认 _source=celestrak 的真实数据。api_tle 全失败时会把

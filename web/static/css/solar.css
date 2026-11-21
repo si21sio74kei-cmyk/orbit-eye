@@ -155,9 +155,12 @@ canvas{position:fixed;inset:0;z-index:0;}
   #ctrl-panel .ctrl-btn{font-size:10px;padding:8px 11px 8px 24px;}
   #ctrl-panel .ctrl-btn::before{left:11px;}
   #ctrl-panel .pnl{order:-1;width:100%;padding:8px 12px;}
-  #status-panel{top:56px;right:10px;width:168px;}
-  #status-panel .pnl-in{padding:10px;}
-  #status-panel .row{font-size:9px;}
+  #status-panel{top:56px;right:10px;width:146px;}
+  #status-panel .pnl-in{padding:9px 10px;}
+  #status-panel .hd{font-size:8.5px;letter-spacing:.8px;line-height:1.5;}
+  #status-panel .row{font-size:8.5px;padding:4px 0;gap:6px;}
+  #status-panel .row .k{letter-spacing:0;}
+  #st-planet{font-size:11px!important;}
   #planet-card{left:12px!important;top:auto!important;bottom:76px;max-width:calc(100vw - 24px);}
   #sat-overlay>div:last-child{flex-direction:column;}
   #sat-globe{flex:1;min-height:45%;}

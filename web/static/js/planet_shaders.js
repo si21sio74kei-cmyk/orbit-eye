@@ -411,26 +411,26 @@ const RING_FS = `
 varying vec2 vUv;
 uniform float uTime;
 void main() {
+    // 环缝/暗环必须是「半透明」而不是「不透明的黑」——原来 alpha 恒为 1，
+    // 于是环缝像被挖掉的黑塑料，看不到后面的星空。这里给每条带单独的不透明度。
     float r = vUv.x;
     vec3 col;
-    if(r<0.06){col=vec3(0.10,0.08,0.05);}
-    else if(r<0.08){col=vec3(0.22,0.16,0.09);}
-    else if(r<0.18){col=vec3(0.89,0.81,0.66);}
-    else if(r<0.22){col=vec3(0.05,0.04,0.03);}
-    else if(r<0.35){col=vec3(0.95,0.86,0.73);}
-    else if(r<0.40){col=vec3(0.46,0.39,0.29);}
-    else if(r<0.55){col=vec3(0.91,0.83,0.67);}
-    else if(r<0.60){col=vec3(0.36,0.29,0.21);}
-    else if(r<0.75){col=vec3(0.81,0.73,0.59);}
-    else if(r<0.85){col=vec3(0.52,0.44,0.34);}
-    else if(r<0.92){col=vec3(0.26,0.21,0.15);}
-    else{col=vec3(0.05,0.04,0.02);}
+    float alpha;
+    if(r<0.05){col=vec3(0.10,0.08,0.05); alpha=0.14;}
+    else if(r<0.08){col=vec3(0.24,0.18,0.11); alpha=0.34;}
+    else if(r<0.18){col=vec3(0.78,0.70,0.57); alpha=0.56;}
+    else if(r<0.22){col=vec3(0.10,0.08,0.06); alpha=0.06;}
+    else if(r<0.35){col=vec3(0.95,0.87,0.74); alpha=0.96;}
+    else if(r<0.40){col=vec3(0.52,0.44,0.32); alpha=0.34;}
+    else if(r<0.55){col=vec3(0.91,0.83,0.67); alpha=0.88;}
+    else if(r<0.60){col=vec3(0.40,0.33,0.24); alpha=0.20;}
+    else if(r<0.75){col=vec3(0.81,0.73,0.59); alpha=0.78;}
+    else if(r<0.85){col=vec3(0.55,0.47,0.36); alpha=0.46;}
+    else if(r<0.92){col=vec3(0.28,0.23,0.17); alpha=0.16;}
+    else{col=vec3(0.08,0.06,0.04); alpha=0.05;}
     float grain = fract(sin(dot(vec2(r*260.0,vUv.y*130.0),vec2(12.9898,78.233)))*43758.5453);
     col += grain*0.045;
-    float alpha=1.0;
-    if(r<0.05||r>0.94){alpha=(r<0.05?r/0.05:(1.0-r)/0.06)*0.30;}
-    else if(r>0.20&&r<0.24){alpha=0.08;}
-    else if(r>0.38&&r<0.42){alpha=0.12;}
-    gl_FragColor = vec4(col, alpha);
+    float edge = smoothstep(0.0,0.045,r) * smoothstep(1.0,0.945,r);
+    gl_FragColor = vec4(col, alpha * edge);
 }
 `;

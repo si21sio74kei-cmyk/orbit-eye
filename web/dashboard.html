@@ -258,40 +258,124 @@
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 
 /* ═══════════════════════════════════════════════════
-   PAGE-SPECIFIC COLOR THEMES
+   SOLAR GATE — 发射页（青蓝体系，唯一暖色是那枚太阳）
    ═══════════════════════════════════════════════════ */
-#pg-1 { background:radial-gradient(ellipse at 50% 40%,rgba(251,146,30,.07) 0%,rgba(2,11,26,1) 70%) !important; }
-#pg-1 .pnl { background:rgba(16,9,2,.96) !important; border-color:rgba(251,191,36,.2) !important; }
-#pg-1 .pnl.corner::before, #pg-1 .pnl.corner::after { border-color:rgba(251,191,36,.45) !important; }
-#pg-1 .pnl:hover { border-color:rgba(251,191,36,.4) !important; }
-.launch-card { width:540px; text-align:center; padding:52px 44px; }
-.launch-card .title {
-  font-family:'Chakra Petch',sans-serif; font-size:44px; letter-spacing:8px;
-  color:#fbbf24; font-weight:700;
-  text-shadow:0 0 30px rgba(251,146,30,.35),0 0 80px rgba(251,146,30,.14);
-  animation:solarTitlePulse 3s ease-in-out infinite;
+#pg-1 { background:
+  radial-gradient(58% 46% at 50% 30%, rgba(108,182,232,.06), transparent 72%),
+  radial-gradient(100% 80% at 50% 118%, rgba(3,7,14,.92), transparent 62%) !important; }
+#pg-1 .lc-shell { position:relative; min-height:100%; display:flex; align-items:center; justify-content:center;
+  padding:64px 28px; }
+/* 背景轨道弧：裁切容器，绝对定位的装饰不得撑高页面滚动 */
+.lc-bg { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
+.lc-orbits { position:absolute; left:50%; top:46%; width:min(1500px,148vw); aspect-ratio:1;
+  transform:translate(-50%,-50%); opacity:.9;
+  -webkit-mask-image:radial-gradient(closest-side,#000 40%,rgba(0,0,0,.55) 68%,transparent 96%);
+  mask-image:radial-gradient(closest-side,#000 40%,rgba(0,0,0,.55) 68%,transparent 96%); }
+.lc-orbits circle { fill:none; stroke:rgba(108,182,232,.2); stroke-width:1; }
+.lc-orbits .od1 { stroke:rgba(135,200,240,.34); stroke-width:1; stroke-dasharray:1 15; stroke-linecap:round;
+  transform-origin:450px 450px; animation:lcOrbitSpin 96s linear infinite; }
+.lc-orbits .od2 { stroke:rgba(108,182,232,.22); stroke-width:1; stroke-dasharray:2 30;
+  transform-origin:450px 450px; animation:lcOrbitSpin 168s linear infinite reverse; }
+.lc-orbits .on1 { fill:rgba(108,182,232,.55); }
+.lc-orbits .on2 { fill:rgba(155,215,245,.36); }
+@keyframes lcOrbitSpin { to { transform:rotate(360deg); } }
+
+.launch-card { position:relative; z-index:2; width:min(600px,100%); margin:0;
+  text-align:left; border:1px solid rgba(150,180,210,.14); border-radius:14px; overflow:hidden;
+  background:linear-gradient(180deg,rgba(14,21,32,.93),rgba(8,13,21,.96));
+  box-shadow:0 1px 0 rgba(190,220,245,.07) inset,0 44px 96px -34px rgba(0,0,0,.92);
+  backdrop-filter:blur(18px);
+  animation:lcIn .72s cubic-bezier(.22,1,.36,1) both; }
+@keyframes lcIn { from{opacity:0;transform:translateY(16px) scale(.994)} to{opacity:1;transform:none} }
+/* 顶缘一道极细的高光，替代原来的整圈发光边框 */
+.launch-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(108,182,232,.42) 30%,rgba(180,228,255,.72) 50%,rgba(108,182,232,.42) 70%,transparent); }
+
+.lc-head { display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:13px 26px; border-bottom:1px solid rgba(150,180,210,.09);
+  font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:.15em;
+  color:rgba(168,200,224,.6); }
+.lc-head b { font-weight:400; color:rgba(135,212,250,.86); }
+.lc-head i { font-style:normal; color:rgba(150,180,205,.34); margin:0 7px; }
+.lc-badge { display:inline-flex; align-items:center; gap:7px; color:rgba(155,215,245,.78); }
+.lc-badge::before { content:''; width:4px; height:4px; border-radius:50%; background:var(--primary);
+  box-shadow:0 0 7px rgba(108,182,232,.85); }
+
+.lc-body { padding:34px 40px 28px; }
+/* 唯一的暖色：一枚小太阳 + 一圈极淡的虚线光环 */
+.lc-sun { position:relative; width:34px; height:34px; margin:0 0 22px; }
+.lc-sun i { position:absolute; inset:9px; border-radius:50%;
+  background:radial-gradient(circle at 36% 32%,#ffdcab,#e8a94f 62%,#b3732a);
+  box-shadow:0 0 22px rgba(232,169,79,.34),0 0 56px rgba(232,169,79,.12); }
+.lc-sun::before { content:''; position:absolute; inset:0; border-radius:50%; border:1px solid rgba(232,169,79,.2); }
+.lc-sun::after { content:''; position:absolute; inset:-6px; border-radius:50%;
+  border:1px dashed rgba(232,169,79,.15); animation:lcSunSpin 30s linear infinite; }
+@keyframes lcSunSpin { to { transform:rotate(360deg); } }
+
+.lc-title { font-family:'Chakra Petch',sans-serif; font-weight:600; text-transform:uppercase;
+  font-size:clamp(34px,4.4vw,52px); line-height:.94; letter-spacing:.015em; color:#eef6fd; margin:0 0 16px; }
+.lc-title span { display:block; }
+/* 第二行改空心描边：同一套字，靠字重与填充度分层，不靠发光 */
+.lc-title span:last-child { color:transparent; -webkit-text-stroke:1px rgba(155,215,245,.6); }
+@supports not (-webkit-text-stroke:1px #fff) { .lc-title span:last-child { color:rgba(155,215,245,.45); } }
+
+.lc-sub { font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:.22em;
+  color:rgba(155,215,245,.72); margin:0 0 8px; }
+.lc-sub-cn { font-size:13px; letter-spacing:.05em; color:var(--label); margin:0; }
+.lc-rule { height:1px; margin:23px 0 20px;
+  background:linear-gradient(90deg,rgba(150,180,210,.2),rgba(150,180,210,.03)); }
+.lc-desc { font-size:13.5px; line-height:1.95; color:rgba(200,216,232,.84); margin:0 0 24px; max-width:46ch; }
+
+/* 手势图例：把一行飘着的说明变成可扫读的三栏 */
+.lc-legend { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin:0 0 26px;
+  border:1px solid rgba(150,180,210,.1); border-radius:9px; overflow:hidden; background:rgba(150,180,210,.055); }
+.lc-legend > div { background:rgba(9,14,22,.92); padding:12px 15px; }
+.lc-legend dt { font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:.14em;
+  color:rgba(150,180,205,.55); margin-bottom:6px; }
+.lc-legend dd { margin:0; font-size:12.5px; color:#dbe8f4; letter-spacing:.02em; }
+.lc-legend dd em { font-style:normal; display:block; margin-top:3px; font-family:'Share Tech Mono',monospace;
+  font-size:9px; letter-spacing:.12em; color:rgba(155,215,245,.6); }
+
+.lc-cta { position:relative; display:flex; align-items:center; justify-content:center; gap:13px;
+  height:52px; border:1px solid rgba(108,182,232,.4); border-radius:9px;
+  background:linear-gradient(180deg,rgba(108,182,232,.14),rgba(108,182,232,.06));
+  color:#eaf6ff; text-decoration:none; font-family:'Chakra Petch',sans-serif;
+  font-size:14px; font-weight:500; letter-spacing:.16em; overflow:hidden;
+  transition:background .4s ease,border-color .4s ease,box-shadow .4s ease,transform .2s ease; }
+.lc-cta .en { font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:.2em; color:rgba(155,215,245,.62); }
+.lc-cta svg { width:13px; height:13px; transition:transform .4s cubic-bezier(.22,1,.36,1); }
+.lc-cta::after { content:''; position:absolute; top:0; bottom:0; left:-45%; width:38%;
+  background:linear-gradient(100deg,transparent,rgba(220,240,255,.15),transparent);
+  transform:skewX(-18deg); transition:left .75s cubic-bezier(.22,1,.36,1); }
+.lc-cta:hover { border-color:rgba(155,215,245,.66);
+  background:linear-gradient(180deg,rgba(108,182,232,.22),rgba(108,182,232,.1));
+  box-shadow:0 14px 36px -14px rgba(108,182,232,.55); }
+.lc-cta:hover::after { left:112%; }
+.lc-cta:hover svg { transform:translateX(4px); }
+.lc-cta:active { transform:translateY(1px); }
+
+.lc-hint { margin:14px 0 0; font-family:'Share Tech Mono',monospace; font-size:10.5px;
+  line-height:1.7; letter-spacing:.03em; color:rgba(164,188,210,.8); }
+
+@media(max-width:680px){
+  #pg-1 .lc-shell { padding:34px 14px; }
+  .lc-head { padding:11px 18px; font-size:9px; letter-spacing:.1em; }
+  .lc-head .lc-dim { display:none; }
+  .lc-body { padding:26px 22px 22px; }
+  .lc-title { font-size:clamp(30px,9vw,40px); }
+  .lc-sub { font-size:9px; letter-spacing:.08em; }
+  .lc-desc { font-size:12px; line-height:1.9; }
+  .lc-legend { grid-template-columns:1fr; }
+  .lc-legend > div { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:10px 14px; }
+  .lc-legend dt { margin:0; }
+  .lc-legend dd em { display:inline; margin:0 0 0 8px; }
+  .lc-hint { font-size:9.5px; }
 }
-@keyframes solarTitlePulse {
-  0%,100%{text-shadow:0 0 30px rgba(251,146,30,.55),0 0 80px rgba(251,146,30,.22)}
-  50%{text-shadow:0 0 50px rgba(251,146,30,.75),0 0 110px rgba(251,146,30,.35),0 0 180px rgba(251,146,30,.1)}
+@media(prefers-reduced-motion:reduce){
+  .launch-card { animation:none; }
+  .lc-orbits .od1,.lc-orbits .od2,.lc-sun::after { animation:none; }
+  .lc-cta::after { display:none; }
 }
-.launch-card .subtitle { font-family:'Share Tech Mono',monospace; font-size:12px; letter-spacing:7px; color:#fcd34d; margin-top:12px; font-weight:600; }
-.launch-card .divider {
-  width:220px; height:1px; margin:24px auto;
-  background:linear-gradient(90deg,transparent,rgba(251,191,36,.55),rgba(251,146,30,.55),transparent);
-  box-shadow:0 0 12px rgba(251,146,30,.25);
-}
-.launch-card .desc { font-size:13px; color:#d4a574; line-height:2.2; margin-bottom:28px; font-weight:300; }
-.launch-card .launch-btn {
-  display:inline-block; padding:14px 40px; font-family:'Chakra Petch',sans-serif; font-size:14px; letter-spacing:4px;
-  color:#fbbf24; text-decoration:none; border:2px solid rgba(251,191,36,.45);
-  background:rgba(251,191,36,.08); border-radius:6px; transition:background .35s ease,border-color .35s ease,box-shadow .35s ease,transform .35s ease; text-transform:uppercase;
-}
-.launch-card .launch-btn:hover {
-  background:rgba(251,191,36,.18); border-color:rgba(251,191,36,.75);
-  box-shadow:0 0 48px rgba(251,146,30,.4),0 0 96px rgba(251,146,30,.1); transform:scale(1.04);
-}
-.launch-card .hint { font-size:10px; color:rgba(251,191,36,.3); font-family:'Share Tech Mono',monospace; letter-spacing:2px; margin-top:18px; }
 
 
 /* ═══════════════════════════════════════════════════
@@ -835,18 +919,50 @@
   </div>
 </div>
 
-<!-- ═══════════ PAGE 1: SOLAR SYSTEM LAUNCHER ═══════════ -->
-<div class="pg" id="pg-1" style="display:flex;align-items:center;justify-content:center;">
-  <div class="pnl corner launch-card">
-    <div class="title">SOLAR SYSTEM</div>
-    <div class="subtitle">GESTURE-CONTROLLED 3D EXPERIENCE</div>
-    <div class="divider"></div>
-    <p class="desc">
-      Full 3D solar system with hand gesture control via MediaPipe Hands.<br>
-      <span style="color:var(--dim);">Palm move = Rotate &bull; Swipe = Change planet &bull; Pinch = Info</span>
-    </p>
-    <a href="/solar" target="_blank" rel="noopener noreferrer" class="launch-btn">▶ LAUNCH SOLAR SYSTEM</a>
-    <p class="hint">Opens in new tab &bull; Requires camera permission for gesture control</p>
+<!-- ═══════════ PAGE 1: SOLAR SYSTEM GATE ═══════════ -->
+<div class="pg" id="pg-1">
+  <div class="lc-shell">
+    <div class="lc-bg" aria-hidden="true">
+      <svg class="lc-orbits" viewBox="0 0 900 900" focusable="false">
+        <circle class="od2" cx="450" cy="450" r="236"></circle>
+        <circle cx="450" cy="450" r="300"></circle>
+        <circle class="od1" cx="450" cy="450" r="364"></circle>
+        <circle class="on1" cx="450" cy="86" r="2.6"></circle>
+        <circle class="on2" cx="450" cy="750" r="2.2"></circle>
+        <circle class="on2" cx="814" cy="450" r="1.8"></circle>
+      </svg>
+    </div>
+
+    <section class="launch-card" aria-labelledby="lc-title">
+      <div class="lc-head">
+        <span><b>ORBIT EYE</b><i>/</i>MODULE 02</span>
+        <span class="lc-badge lc-dim">GESTURE 3D</span>
+      </div>
+
+      <div class="lc-body">
+        <div class="lc-sun" aria-hidden="true"><i></i></div>
+
+        <h1 class="lc-title" id="lc-title"><span>Solar</span><span>System</span></h1>
+        <p class="lc-sub">GESTURE-CONTROLLED ORBITAL ATLAS</p>
+        <p class="lc-sub-cn">手势控制的三维轨道沙盘</p>
+
+        <div class="lc-rule"></div>
+        <p class="lc-desc">真实天文参数驱动的太阳系立体模型。<br>用摄像头捕捉手势，切换行星、展开资料。</p>
+
+        <dl class="lc-legend">
+          <div><dt>01 / 掌移</dt><dd>旋转视角<em>PALM MOVE</em></dd></div>
+          <div><dt>02 / 划动</dt><dd>切换行星<em>SWIPE</em></dd></div>
+          <div><dt>03 / 捏合</dt><dd>展开资料<em>PINCH</em></dd></div>
+        </dl>
+
+        <a href="/solar" target="_blank" rel="noopener noreferrer" class="lc-cta">
+          <span>启动太阳系</span>
+          <span class="en">LAUNCH</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+        </a>
+        <p class="lc-hint">在新标签页打开 · 手势识别需授权摄像头，键盘与鼠标同样可操作</p>
+      </div>
+    </section>
   </div>
 </div>
 

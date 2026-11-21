@@ -426,20 +426,11 @@ body::after {
 
 /* ═══════════════════════════════════════════════════
    SOLAR LAUNCHER PAGE
+   发射页样式统一在 dashboard.html 内联层维护（青蓝体系 + 暖阳点缀），
+   此处不再保留旧的居中卡片规则，避免 max-width / text-align 覆盖新布局。
    ═══════════════════════════════════════════════════ */
-.launch-card { width:calc(100% - 32px); max-width: 500px; text-align: center; padding: 48px 40px; margin: auto; }
-.launch-card .title { font-family: var(--display); font-size: 30px; letter-spacing: 6px; color: var(--accent); font-weight: 600; margin-bottom: 10px; }
-.launch-card .subtitle { font-size: 11px; color: var(--dim); margin-bottom: 6px; letter-spacing: 2px; font-family: var(--mono); }
-.launch-card .divider { width: 56px; height: 2px; background: var(--primary); margin: 20px auto; border-radius: 2px; }
-.launch-card .desc { font-size: 11px; color: var(--label); line-height: 1.8; margin-bottom: 26px; }
-.launch-card .launch-btn { display: inline-block; text-decoration: none; font-family: var(--display); font-size: 12px; letter-spacing: 3px; padding: 14px 36px; border: 1px solid rgba(108,182,232,.4); background: rgba(108,182,232,.06); color: var(--accent); border-radius: 8px; transition:background .3s ease,border-color .3s ease,color .3s ease,transform .3s ease; cursor: pointer; }
-.launch-card .launch-btn:hover { background: rgba(108,182,232,.14); transform: translateY(-2px); }
-.launch-card .hint { font-size: 9px; color: var(--dim); margin-top: 16px; font-family: var(--mono); }
-
 @media (max-width: 768px) {
   .guide-panel { width: 240px; right: 6px; font-size: 9px; }
-  .launch-card { padding: 30px 20px; }
-  .launch-card .title { font-size: 22px; letter-spacing: 4px; }
 }
 
 /* ═══════════════════════════════════════════════════

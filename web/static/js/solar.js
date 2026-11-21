@@ -12,35 +12,74 @@ const RING_FRAGMENT = (typeof RING_FS !== 'undefined') ? RING_FS : RING_FS_FALLB
 let cardGen = 0;
 function escHTML(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // 電影級軌道 — 太陽半徑 3.50，所有行星軌道 > 6.0 絕不穿模（含日冕層）
-// 公转 v = 真实轨道角速度比例（地球=1.0）  |  自转 rot = 真实自转速度（地球=1.0）
-// 轨道间距按星球体积+光环计算，确保绝不穿模
+// 公转角速度 ω 由开普勒第三定律推导：T² ∝ a³ → ω ∝ 1/T ∝ a^(-1.5)，以地球(a=1AU)=1.0 为基准
+// a = 轨道半长轴(AU)，数据源 NASA Planetary Fact Sheet (nssdc.gsfc.nasa.gov)；v 由 a 动态计算，不再硬编码
+// 自转 rot 为真实自转速度比例（地球=1.0）：木星最快0.41天，金星/天王星逆行为负
+// tilt = 真实自转轴倾角(度, 相对轨道面)；inc/node = 真实轨道倾角与升交点黄经(度)；ecc = 真实离心率
+// 数据源：NASA Planetary Fact Sheet / JPL SSD。ecc 在渲染时按 ECC_K 阻尼，仅取形态不取极端近日点（防撞日冕）
+const KEPLER = { EARTH_A: 1.0 };
+const ECC_K = 0.5;
 const P = [
-  {n:'太阳',  s:3.50,d:0,    v:0,       rot:0.00006,  t:'sun'},     // 自转 ~25天
-  {n:'水星',  s:0.15,d:6.0,  v:4.152,   rot:0.000026, t:'mercury'},  // 公转 0.24年  自转 58.6天
-  {n:'金星',  s:0.40,d:8.0,  v:1.626,   rot:-0.000006,t:'venus'},    // 公转 0.62年  自转 243天（逆行）
-  {n:'地球',  s:0.63,d:10.0, v:1.0,     rot:0.0015,   t:'earth'},    // 公转/自转 基准
-  {n:'火星',  s:0.25,d:12.0, v:0.532,   rot:0.00146,  t:'mars'},     // 公转 1.88年  自转 1.03天
-  {n:'木星',  s:2.20,d:16.5, v:0.0843,  rot:0.00366,  t:'jupiter'},  // 公转 11.9年  自转 0.41天（最快）
-  {n:'土星',  s:1.80,d:23.5, v:0.0339,  rot:0.00333,  t:'saturn'},   // 公转 29.5年  自转 0.45天  +光环外延4.5u
-  {n:'天王星',s:0.85,d:29.5, v:0.0119,  rot:-0.00209, t:'uranus'},   // 公转 84年    自转 0.72天（逆行）
-  {n:'海王星',s:0.80,d:34.0, v:0.00607, rot:0.00224,  t:'neptune'}   // 公转 165年   自转 0.67天
+  {n:'太阳',  s:3.50,d:0,    a:0,      v:0, rot:0.00006,  t:'sun',    tilt:7.25},                                        // 自转 ~25天
+  {n:'水星',  s:0.15,d:6.0,  a:0.387,  v:0, rot:0.000026, t:'mercury',tilt:0.03,  inc:7.005, node:48.33,  ecc:0.2056}, // 公转 87.97天
+  {n:'金星',  s:0.40,d:8.0,  a:0.723,  v:0, rot:-0.000006,t:'venus',  tilt:177.4, inc:3.395, node:76.68,  ecc:0.0068}, // 自转243天逆行
+  {n:'地球',  s:0.63,d:10.0, a:1.0,    v:1, rot:0.0015,   t:'earth',  tilt:23.44, inc:0.0,   node:0,      ecc:0.0167}, // 公转/自转 基准
+  {n:'火星',  s:0.25,d:12.0, a:1.524,  v:0, rot:0.00146,  t:'mars',   tilt:25.19, inc:1.850, node:49.56,  ecc:0.0934},
+  {n:'木星',  s:2.20,d:16.5, a:5.203,  v:0, rot:0.00366,  t:'jupiter',tilt:3.13,  inc:1.303, node:100.46, ecc:0.0489},
+  {n:'土星',  s:1.80,d:23.5, a:9.537,  v:0, rot:0.00333,  t:'saturn', tilt:26.73, inc:2.485, node:113.66, ecc:0.0565},
+  {n:'天王星',s:0.85,d:29.5, a:19.191, v:0, rot:-0.00209, t:'uranus', tilt:97.77, inc:0.773, node:74.01,  ecc:0.0457},
+  {n:'海王星',s:0.80,d:34.0, a:30.069, v:0, rot:0.00224,  t:'neptune',tilt:28.32, inc:1.770, node:131.78, ecc:0.0113}
 ];
+// ω_rel = (a_earth / a)^1.5 —— 一次计算，供整个动画使用，避免每帧重复开方
+P.forEach(p => {
+  if (p.a > 0) p.v = Math.pow(KEPLER.EARTH_A / p.a, 1.5);
+  p.incR  = (p.inc  || 0) * Math.PI / 180;   // 轨道倾角
+  p.nodeR = (p.node || 0) * Math.PI / 180;   // 升交点黄经
+  p.eccV  = (p.ecc  || 0) * ECC_K;           // 阻尼后的离心率：保留椭圆形态，但不让近日点擦到日冕
+  p.tiltR = (p.tilt || 0) * Math.PI / 180;   // 自转轴倾角
+});
+// 轨道面上的极坐标 → 黄道坐标（含倾角与升交点）
+const _orbV = new THREE.Vector3();
+function orbitPoint(p, nu, out){
+  // 椭圆：焦点在太阳；无离心率时退化为正圆
+  const r = p.eccV ? p.d * (1 - p.eccV*p.eccV) / (1 + p.eccV*Math.cos(nu)) : p.d;
+  if (!p.incR && !p.nodeR) return out.set(Math.cos(nu)*r, 0, Math.sin(nu)*r);
+  const ci=Math.cos(p.incR), si=Math.sin(p.incR), cO=Math.cos(p.nodeR), sO=Math.sin(p.nodeR);
+  const cU=Math.cos(nu), sU=Math.sin(nu);
+  return out.set(
+    r * (cO*cU - sO*sU*ci),
+    r * (si*sU),
+    r * (sO*cU + cO*sU*ci)
+  );
+}
+window.__KEPLER__ = P.map(p => ({name:p.n, a:p.a, v:p.v})); // 暴露给验证脚本核对比例
 const PC={sun:0xffdd44,mercury:0xb0ada6,venus:0xe8dcc8,earth:0x3388dd,mars:0xd45a38,jupiter:0xd4b896,saturn:0xe8d5b0,uranus:0xb8d8d8,neptune:0xa0c8d8};
 
 // 🛡️ 紋理載入器（跨域開放）
 // 🚀【彻底修复】：接入全球最稳定的开源天文贴图库 (threex.planets)，提供全套高清PBR纹理
+const TEX_BASE = 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/';
 const TX = {
   sun: 'https://upload.wikimedia.org/wikipedia/commons/9/99/Map_of_the_full_sun.jpg', 
-  mercury: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/mercurymap.jpg',
-  venus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/venusmap.jpg',
-  earth: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/earthmap1k.jpg',
-  mars: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/marsmap1k.jpg',
-  jupiter: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/jupitermap.jpg',
-  saturn: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/saturnmap.jpg',
-  uranus: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/uranusmap.jpg',
-  neptune: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/neptunemap.jpg',
-  moon: 'https://cdn.jsdelivr.net/gh/jeromeetienne/threex.planets@master/images/moonmap1k.jpg',
+  mercury: TEX_BASE+'mercurymap.jpg',
+  venus: TEX_BASE+'venusmap.jpg',
+  earth: TEX_BASE+'earthmap1k.jpg',
+  mars: TEX_BASE+'marsmap1k.jpg',
+  jupiter: TEX_BASE+'jupitermap.jpg',
+  saturn: TEX_BASE+'saturnmap.jpg',
+  uranus: TEX_BASE+'uranusmap.jpg',
+  neptune: TEX_BASE+'neptunemap.jpg',
+  moon: TEX_BASE+'moonmap1k.jpg',
 };
+// 真实感增强用的第二层贴图：凹凸（地貌起伏）/ 云层与夜面灯光（仅地球）
+// 夜灯图为 NASA Black Marble，作为 emissiveMap 只在暗面生效
+const TX_EXTRA = {
+  mercuryBump: TEX_BASE+'mercurybump.jpg',
+  earthBump:   TEX_BASE+'earthbump1k.jpg',
+  earthCloud:  TEX_BASE+'earthcloudmaptrans.jpg',
+  earthNight:  'https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg',
+  marsBump:    TEX_BASE+'marsbump1k.jpg',
+};
+const BUMP_SCALE = { mercury:0.014, earth:0.010, mars:0.012 };
 const texLoader = new THREE.TextureLoader();
 texLoader.setCrossOrigin('anonymous');
 
@@ -58,17 +97,54 @@ ssRn.shadowMap.type = THREE.PCFSoftShadowMap;
 ssRn.outputEncoding = THREE.sRGBEncoding;
 ssRn.toneMapping = THREE.ACESFilmicToneMapping;
 // 💡 降低全局曝光，避免高光区泛白
-ssRn.toneMappingExposure = 1.1; 
-// 💡 提亮宇宙暗部的环境光，让星球背对太阳的那一面也能看清地貌质感
-ssS.add(new THREE.AmbientLight(0x334466, 0.8)); 
-// 💡 致命修复：把 30.0 的光强改为正常的 2.0，解除“强光闪瞎贴图”的现象
-const sunLight = new THREE.PointLight(0xffffff, 2.0, 5000);
+ssRn.toneMappingExposure = 1.0; 
+// 💡 环境光压到 0.55：太阳是唯一强光源，明暗界线才立得住；太亮会把夜面洗平
+ssS.add(new THREE.AmbientLight(0x334466, 0.35)); 
+// 💡 把 30.0 的光强改为正常的 2.0，解除“强光闪瞎贴图”的现象
+const sunLight = new THREE.PointLight(0xffffff, 1.45, 5000);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
 sunLight.shadow.mapSize.height = 2048;
 sunLight.shadow.bias = -0.0001;
 ssS.add(sunLight);
-ssS.add(new THREE.HemisphereLight(0x8899cc, 0x112244, 0.30));
+ssS.add(new THREE.HemisphereLight(0x8899cc, 0x112244, 0.16));
+
+// ── 银河：沿一条倾斜大圆密集分布的软光点（点精灵，无球面 UV，因此不会有接缝） ──
+(function buildMilkyWay(){
+  // 4×4 像素的圆形柔光贴图：让每个点都是一小团雾，而不是硬方块
+  const gcv = document.createElement('canvas'); gcv.width = gcv.height = 32;
+  const gg = gcv.getContext('2d');
+  const rad = gg.createRadialGradient(16, 16, 0, 16, 16, 16);
+  rad.addColorStop(0, 'rgba(255,255,255,1)');
+  rad.addColorStop(0.35, 'rgba(255,255,255,.55)');
+  rad.addColorStop(1, 'rgba(255,255,255,0)');
+  gg.fillStyle = rad; gg.fillRect(0, 0, 32, 32);
+  const dotTex = new THREE.CanvasTexture(gcv);
+
+  const N = 5200, R = 130;
+  const g1 = new THREE.BufferGeometry(), pos = new Float32Array(N*3), col = new Float32Array(N*3);
+  for (let i = 0; i < N; i++){
+    const t = Math.random() * Math.PI * 2;
+    // 三次均匀分布叠加 ≈ 高斯，形成中间密、两侧薄的带
+    const g = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+    const r = R + (Math.random() - 0.5) * 26;
+    pos[i*3]   = Math.cos(t) * r;
+    pos[i*3+1] = g * R * 0.13;
+    pos[i*3+2] = Math.sin(t) * r;
+    // 冷白到淡蓝的星色，亮度随机
+    const b = 0.45 + Math.random() * 0.55;
+    col[i*3] = b * 0.86; col[i*3+1] = b * 0.93; col[i*3+2] = b;
+  }
+  g1.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g1.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const mw = new THREE.Points(g1, new THREE.PointsMaterial({
+    size: 0.72, map: dotTex, vertexColors: true, transparent: true,
+    opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+  }));
+  mw.rotation.z = 0.42;   // 让银河斜穿视野
+  mw.renderOrder = -1;
+  ssS.add(mw);
+})();
 
 // 星空背景 — 多层星场: 远处密集暗星 + 近处亮星
 const starGeo=new THREE.BufferGeometry(), starPos=new Float32Array(3000*3);
@@ -141,7 +217,12 @@ P.forEach((p,i)=>{
         if (TX.sun) texLoader.load(TX.sun, tex => { tex.encoding = THREE.sRGBEncoding; mat.map = tex; mat.needsUpdate = true; });
       } else {
         // 🪐 其他岩石与气态行星
-        mat = new THREE.MeshStandardMaterial({color: PC[p.t], roughness: 0.85, metalness: 0.05});
+        // 地球单独处理：海面反光 + 夜面城市灯光 + 凹凸，靠三层贴图叠出真实感
+        if (p.t === 'earth') {
+          mat = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.86, metalness: 0.06});
+        } else {
+          mat = new THREE.MeshStandardMaterial({color: PC[p.t], roughness: 0.85, metalness: 0.05});
+        }
         if (TX[p.t]) {
           texLoader.load(TX[p.t], tex => { 
             tex.encoding = THREE.sRGBEncoding; 
@@ -152,24 +233,56 @@ P.forEach((p,i)=>{
             mat.needsUpdate = true; 
           });
         }
+        // 凹凸贴图：岩石行星才有真实起伏；数据贴图不做 sRGB 转换
+        const bkey = {mercury:'mercuryBump', earth:'earthBump', mars:'marsBump'}[p.t];
+        if (bkey && TX_EXTRA[bkey]) {
+          texLoader.load(TX_EXTRA[bkey], tex => {
+            mat.bumpMap = tex;
+            mat.bumpScale = BUMP_SCALE[p.t] || 0.01;
+            mat.needsUpdate = true;
+          });
+        }
+        // 地球夜面：NASA Black Marble 作为自发光贴图，白天被太阳光压住，夜面亮起城市
+        if (p.t === 'earth' && TX_EXTRA.earthNight) {
+          texLoader.load(TX_EXTRA.earthNight, tex => {
+            tex.encoding = THREE.sRGBEncoding;
+            mat.emissiveMap = tex;
+            mat.emissive = new THREE.Color(0xffffff);
+            mat.emissiveIntensity = 1.15;
+            mat.needsUpdate = true;
+          });
+        }
       }
 
   const mesh = new THREE.Mesh(geo, mat);
   ssS.add(mesh);  // ← 致命修復：把行星加入場景！
   if (i > 0) { mesh.castShadow = true; mesh.receiveShadow = true; }
+  // 🌐 真实自转轴倾角：ZYX 顺序 = 先自转(局部 Y) 再倾斜(世界 Z)，轴心固定、贴图绕真实极轴转
+  // （若用默认 XYZ 顺序，倾角会随自转一起绕圈，看上去像"晃头"）
+  mesh.rotation.order = 'ZYX';
+  if (p.tiltR) mesh.rotation.z = p.tiltR;
 
-  // ☁️ 地球雲層球殼
+  // ☁️ 地球雲層球殼 — 真实云图作为 alpha 遮罩，取代原来那层"白雾球"
   if (p.t === 'earth') {
-    const cloudGeo = new THREE.SphereGeometry(p.s*1.01, 64, 64);
-    const cloudMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:1.0, metalness:0.0, transparent:true, opacity:0.30, depthWrite:false});
+    const cloudGeo = new THREE.SphereGeometry(p.s*1.012, 96, 96);
+    const cloudMat = new THREE.MeshStandardMaterial({
+      color:0xffffff, roughness:1.0, metalness:0.0,
+      transparent:true, opacity:0, depthWrite:false   // 贴图到位前保持全透明，避免先闪一层白壳
+    });
     const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
     mesh.add(cloudMesh);
     mesh.userData.clouds = cloudMesh;
+    texLoader.load(TX_EXTRA.earthCloud, tex => {
+      tex.encoding = THREE.sRGBEncoding;
+      cloudMat.alphaMap = tex;
+      cloudMat.opacity = 0.92;
+      cloudMat.needsUpdate = true;
+    });
   }
 
-  // ☀️ 日冕光晕 — 双层（配合新太阳尺寸 0.65）
+  // ☀️ 日冕光晕 — 双层；收紧外径避免加性光晕吞掉高速掠过的水星（水星轨道 6.0）
   if (i === 0) {
-    const gGeoInner = new THREE.SphereGeometry(p.s*1.22, 96, 96);
+    const gGeoInner = new THREE.SphereGeometry(p.s*1.16, 96, 96);
     const gMatInner = new THREE.ShaderMaterial({
       uniforms: {c: {value: new THREE.Color(0xffffff)}, p: {value: 3.2}},
       vertexShader: 'varying vec3 vN; void main(){vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
@@ -177,7 +290,7 @@ P.forEach((p,i)=>{
       side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
     });
     mesh.add(new THREE.Mesh(gGeoInner, gMatInner));
-    const gGeoOuter = new THREE.SphereGeometry(p.s*1.55, 96, 96);
+    const gGeoOuter = new THREE.SphereGeometry(p.s*1.30, 96, 96);
     const gMatOuter = new THREE.ShaderMaterial({
       uniforms: {c: {value: new THREE.Color(0xff8833)}, p: {value: 1.6}},
       vertexShader: 'varying vec3 vN; void main(){vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
@@ -247,31 +360,57 @@ P.forEach((p,i)=>{
       side: THREE.DoubleSide, transparent: true, depthWrite: false
     });
     const ring = new THREE.Mesh(rGeo, rMat);
-    ring.rotation.x = Math.PI / 2.2;
+    // 环平面即赤道面：倾角由 mesh.rotation.z（26.73°）提供，这里只需摆平到赤道
+    ring.rotation.x = Math.PI / 2;
     mesh.add(ring);
     ssObjs._ringMat = rMat;
   }
 
-  // 轨道环
+  // 🔵 天王星光环 — 真实存在但极暗；倾角 97.8° 让它近乎竖立，是识别天王星的关键特征
+  // 用 6 条细环代替一整片圆盘：真实环系本来就是一组细窄的弧带，一整片会看成一个灰盘
+  if (p.t === 'uranus') {
+    const uBands = [
+      [1.62, 0.006, 0.34], [1.68, 0.005, 0.26], [1.76, 0.010, 0.40],
+      [1.84, 0.006, 0.24], [1.94, 0.008, 0.30], [2.02, 0.005, 0.20]
+    ];
+    uBands.forEach(([rr, w, op]) => {
+      const uGeo = new THREE.RingGeometry(p.s*rr, p.s*(rr+w), 128);
+      const uMat = new THREE.MeshBasicMaterial({
+        color: 0xbfe3ea, transparent: true, opacity: op,
+        side: THREE.DoubleSide, depthWrite: false
+      });
+      const uRing = new THREE.Mesh(uGeo, uMat);
+      uRing.rotation.x = Math.PI / 2;   // 摆到赤道面；97.8° 的轴倾角由父级负责
+      mesh.add(uRing);
+    });
+  }
+
+  // 轨道环 —— 与真实轨道同一条曲线（含倾角/离心率），不再是一圈水平圆环
+  let orbitMat = null;
   if (i > 0) {
+    const SEG = 256, curvePts = [];
+    for (let k = 0; k < SEG; k++) {
+      curvePts.push(orbitPoint(p, k / SEG * Math.PI * 2, new THREE.Vector3()));
+    }
+    const orbCurve = new THREE.CatmullRomCurve3(curvePts, true);
     const orb = new THREE.Mesh(
-      new THREE.TorusGeometry(p.d, .004, 12, 256),
+      new THREE.TubeGeometry(orbCurve, SEG, .004, 6, true),
       new THREE.MeshBasicMaterial({color: 0x556688, transparent: true, opacity: .35})
     );
-    orb.rotation.x = Math.PI / 2;
+    orbitMat = orb.material;
     ssS.add(orb);
   }
 
-  ssObjs.push({mesh, dist:p.d, speed:p.v, angle:Math.random()*Math.PI*2, name:p.n, type:p.t});
+  ssObjs.push({mesh, dist:p.d, speed:p.v, angle:Math.random()*Math.PI*2, name:p.n, type:p.t, orbitMat});
 });
 
-// ☄️ 小行星帶 — 火星(d=2.80) 與木星(d=4.20) 之間
+// ☄️ 小行星帶 — 火星(d=12.0) 與木星(d=16.5) 之間，按 2.2–3.3 AU 映射到 12.9–14.6
 const astGeo = new THREE.BufferGeometry();
-const astCount = 12288, astPosArr = new Float32Array(astCount * 3), astColArr = new Float32Array(astCount * 3);
+const astCount = 7000, astPosArr = new Float32Array(astCount * 3), astColArr = new Float32Array(astCount * 3);
 for (let i = 0; i < astCount; i++) {
   const angle = Math.random() * Math.PI * 2;
-  const radius = 12.0 + Math.random() * 3.0;
-  const y = (Math.random() - 0.5) * 0.80;
+  const radius = 12.9 + Math.random() * 1.7;
+  const y = (Math.random() - 0.5) * 0.34;
   astPosArr[i*3] = Math.cos(angle) * radius;
   astPosArr[i*3+1] = y;
   astPosArr[i*3+2] = Math.sin(angle) * radius;
@@ -280,7 +419,7 @@ for (let i = 0; i < astCount; i++) {
 }
 astGeo.setAttribute('position', new THREE.BufferAttribute(astPosArr, 3));
 astGeo.setAttribute('color', new THREE.BufferAttribute(astColArr, 3));
-const astMat = new THREE.PointsMaterial({size: 0.03, vertexColors: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false});
+const astMat = new THREE.PointsMaterial({size: 0.018, vertexColors: true, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false});
 const asteroidBelt = new THREE.Points(astGeo, astMat);
 ssS.add(asteroidBelt);
 
@@ -293,13 +432,13 @@ moon.castShadow = true; moon.receiveShadow = true;
 const earthObj = ssObjs.find(o => o.type === 'earth');
 if (earthObj) earthObj.moon = moon;
 
-// ☀️ 太陽日冕粒子場（太陽半徑 3.50）
+// ☀️ 太陽日冕粒子場（太陽半徑 3.50；外径收紧至 1.15R=4.03，远小于水星轨道 6.0）
 const coronaGeo = new THREE.BufferGeometry();
 const coronaCount = 1500, coronaPosArr = new Float32Array(coronaCount * 3);
 for (let i = 0; i < coronaCount; i++) {
   const theta = Math.random() * Math.PI * 2;
   const phi = Math.acos(2 * Math.random() - 1);
-  const r = 3.50 * (1.02 + Math.random() * 0.18);
+  const r = 3.50 * (1.01 + Math.random() * 0.14);
   coronaPosArr[i*3] = Math.sin(phi) * Math.cos(theta) * r;
   coronaPosArr[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
   coronaPosArr[i*3+2] = Math.cos(phi) * r;
@@ -329,7 +468,7 @@ if (earthObj && earthObj.moon) {
   const moonGlowMat = new THREE.ShaderMaterial({
     uniforms: {c: {value: new THREE.Color(0xcccccc)}, p: {value: 3.0}},
     vertexShader: 'varying vec3 vN; void main(){vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-    fragmentShader: 'uniform vec3 c; uniform float p; varying vec3 vN; void main(){float i=pow(1.0-max(0.0,dot(vN,vec3(0,0,1))),p); gl_FragColor=vec4(c,i*0.18);}',
+    fragmentShader: 'uniform vec3 c; uniform float p; varying vec3 vN; void main(){float i=pow(1.0-max(0.0,dot(vN,vec3(0,0,1))),p); gl_FragColor=vec4(c,i*0.07);}',
     side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
   });
   const moonGlow = new THREE.Mesh(moonGlowGeo, moonGlowMat);
@@ -854,31 +993,49 @@ function closeSatMap(){
 //  主渲染循环
 // ──────────────────────────────────────────────────────
 const _tmpLabel = new THREE.Vector3(), _tmpCam = new THREE.Vector3(), _tmpLook = new THREE.Vector3(), _tmpProj = new THREE.Vector3();
+// ── 帧率无关：所有天体增量以 60fps 为基准归一化，避免高刷屏(120/144Hz)整体加速 ──
+let _lastFrameMs = 0;
+const FRAME_MS = 1000 / 60;
+// 单帧角增量软上限：超过阈值后增速放缓但不锁死，避免高速时水星频闪/视觉倒转
+const SPIN_CAP = 0.16;
+function softCapStep(step){
+  const a = Math.abs(step);
+  if (a <= SPIN_CAP) return step;
+  const over = a - SPIN_CAP;
+  return (step < 0 ? -1 : 1) * (SPIN_CAP + over / (1 + over / SPIN_CAP));
+}
+window.__FRAME__ = () => ({dtScale: window.__lastDt || 1});
 (function anim(){
   requestAnimationFrame(anim);
-  ssObjs[0].mesh.rotation.y += P[0].rot * speed;
+  const nowMs = performance.now();
+  let dt = _lastFrameMs ? (nowMs - _lastFrameMs) / FRAME_MS : 1;
+  _lastFrameMs = nowMs;
+  // 切后台/掉帧保护：单帧最多按 3 帧计，回到前台不跳变
+  if (dt > 3) dt = 3; else if (dt < 0 || !isFinite(dt)) dt = 0;
+  window.__lastDt = dt;
+  ssObjs[0].mesh.rotation.y += P[0].rot * speed * dt;
 
   // 更新 GPU shader uniforms
-  const now = performance.now() * 0.001;
+  const now = nowMs * 0.001;
   if (ssObjs._ringMat) ssObjs._ringMat.uniforms.uTime.value = now;
 
   // ☄️ 小行星帶緩慢旋轉
-  if (asteroidBelt) asteroidBelt.rotation.y += 0.00015 * speed;
+  if (asteroidBelt) asteroidBelt.rotation.y += 0.00015 * speed * dt;
 
   // ☀️ 日冕粒子沸騰動畫
   if (ssObjs[0]._corona) {
     const cp = ssObjs[0]._corona;
     if (window._isStormActive) {
       // ☢️ 电磁暴激活：疯狂旋转 + 血红粒子 + 剧烈抖动
-      cp.rotation.y += 0.04 * speed;
-      cp.rotation.x += 0.015 * speed;
+      cp.rotation.y += 0.04 * speed * dt;
+      cp.rotation.x += 0.015 * speed * dt;
       cp.material.color.setHex(0xff1111);
       cp.material.opacity = 0.5 + Math.sin(now * 5.0) * 0.35;
       cp.material.size = 0.02 + Math.sin(now * 5.7) * 0.018;
     } else {
       // 🌿 空间天气平静：温和沸腾呼吸
-      cp.rotation.y += 0.008 * speed;
-      cp.rotation.x += 0.003 * speed;
+      cp.rotation.y += 0.008 * speed * dt;
+      cp.rotation.x += 0.003 * speed * dt;
       cp.material.color.setHex(0xffaa44);
       cp.material.opacity = 0.4 + Math.sin(now * 1.7) * 0.15;
       cp.material.size = 0.02 + Math.sin(now * 2.3) * 0.008;
@@ -887,31 +1044,37 @@ const _tmpLabel = new THREE.Vector3(), _tmpCam = new THREE.Vector3(), _tmpLook =
 
   ssObjs.forEach((o, i) => {
     if (i > 0) {
-      o.angle += o.speed * .0208 * speed;
-      o.mesh.position.x = Math.cos(o.angle) * o.dist;
-      o.mesh.position.z = Math.sin(o.angle) * o.dist;
+      o.angle += softCapStep(o.speed * .0208 * speed * dt);
+      // 同一套轨道方程（倾角 + 离心率），位置与轨道环几何严格一致
+      orbitPoint(P[i], o.angle, o.mesh.position);
     }
-    o.mesh.rotation.y += (P[i] ? P[i].rot : 0.0015) * speed;
+    o.mesh.rotation.y += (P[i] ? P[i].rot : 0.0015) * speed * dt;
+
+    // 聚焦行星自身的轨道环淡出：近距离看时那圈线必然会横穿行星本体，像一道划痕
+    if (o.orbitMat) {
+      const orbTarget = (i === focus) ? 0.0 : 0.35;
+      o.orbitMat.opacity += (orbTarget - o.orbitMat.opacity) * 0.05;
+    }
 
     // ☁️ 地球雲層獨立旋轉（比本體稍快）
     if (o.mesh.userData && o.mesh.userData.clouds) {
-      o.mesh.userData.clouds.rotation.y += 0.0022 * speed;  // 云层比地表快 ~1.5×
+      o.mesh.userData.clouds.rotation.y += 0.0022 * speed * dt;  // 云层比地表快 ~1.5×
     }
 
     // 🌙 月球繞地球運行
     if (o.moon) {
       const moonAngle = now * 2.5;
       o.moon.position.set(
-        o.mesh.position.x + Math.cos(moonAngle) * 0.95,
-        o.mesh.position.y + Math.sin(moonAngle * 0.7) * 0.22,
-        o.mesh.position.z + Math.sin(moonAngle) * 0.95
+        o.mesh.position.x + Math.cos(moonAngle) * 1.58,
+        o.mesh.position.y + Math.sin(moonAngle * 0.7) * 0.20,
+        o.mesh.position.z + Math.sin(moonAngle) * 1.58
       );
     }
 
     // 🔭 木星伽利略衛星運行
     if (o.mesh.userData && o.mesh.userData.moons) {
       o.mesh.userData.moons.forEach(m => {
-        m.angle += m.speed * 0.012 * speed;
+        m.angle += m.speed * 0.012 * speed * dt;
         m.mesh.position.set(
           o.mesh.position.x + Math.cos(m.angle) * m.dist,
           o.mesh.position.y + Math.sin(m.angle * 0.3) * m.dist * 0.15,

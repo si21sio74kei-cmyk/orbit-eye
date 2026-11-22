@@ -145,6 +145,95 @@
 #loading-overlay { animation:startupFailsafe .01s linear 7s forwards; }
 @keyframes startupFailsafe { to { opacity:0; visibility:hidden; pointer-events:none; } }
 
+/* 背景氛围层：极淡测控网格 + 稀疏星点缓慢漂移。单一青蓝色相、无第二种颜色，
+   全部走 opacity/transform 合成层，不抢中央字标。--oe-grid-a 控制整体浓淡。 */
+.oe-bg { position:absolute;inset:0;overflow:hidden;pointer-events:none;--oe-grid-a:.085; }
+/* 经纬网格：横竖两组等距细线 + 中心十字准星，边缘用遮罩淡出，中心留白给字标 */
+.oe-bg-grid { position:absolute;inset:-2px;
+  background-image:
+    linear-gradient(rgba(135,212,250,var(--oe-grid-a)) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(135,212,250,var(--oe-grid-a)) 1px,transparent 1px);
+  background-size:64px 64px;
+  -webkit-mask-image:radial-gradient(ellipse 78% 72% at 50% 50%,transparent 30%,#000 100%);
+  mask-image:radial-gradient(ellipse 78% 72% at 50% 50%,transparent 30%,#000 100%);
+  opacity:.55; }
+/* 稀疏星点：radial-gradient 逐点绘制，两层不同速度缓慢漂移制造视差纵深 */
+.oe-bg-stars { position:absolute;inset:-3%;will-change:transform; }
+.oe-bg-stars::before,.oe-bg-stars::after { content:'';position:absolute;inset:-4%;
+  background-repeat:repeat;background-size:100% 100%; }
+/* 远层：更细更暗，漂移更慢 */
+.oe-bg-stars::before {
+  background-image:
+    radial-gradient(circle at 96.6% 50.5%, rgba(135,212,250,0.34) 0.81px, transparent 1.21px),
+    radial-gradient(circle at 4.5% 62.5%, rgba(135,212,250,0.22) 0.9px, transparent 1.3px),
+    radial-gradient(circle at 49.8% 49.2%, rgba(135,212,250,0.25) 0.82px, transparent 1.22px),
+    radial-gradient(circle at 52.8% 93.2%, rgba(135,212,250,0.3) 0.85px, transparent 1.25px),
+    radial-gradient(circle at 89.9% 34.0%, rgba(135,212,250,0.27) 0.93px, transparent 1.33px),
+    radial-gradient(circle at 51.8% 37.2%, rgba(135,212,250,0.28) 0.85px, transparent 1.25px),
+    radial-gradient(circle at 23.0% 63.1%, rgba(135,212,250,0.23) 0.64px, transparent 1.04px),
+    radial-gradient(circle at 49.6% 21.8%, rgba(135,212,250,0.24) 0.8px, transparent 1.2px),
+    radial-gradient(circle at 6.9% 45.1%, rgba(135,212,250,0.22) 0.67px, transparent 1.07px),
+    radial-gradient(circle at 55.2% 75.5%, rgba(135,212,250,0.24) 0.96px, transparent 1.36px),
+    radial-gradient(circle at 53.7% 13.5%, rgba(135,212,250,0.32) 0.71px, transparent 1.11px),
+    radial-gradient(circle at 22.4% 9.1%, rgba(135,212,250,0.26) 0.93px, transparent 1.33px),
+    radial-gradient(circle at 14.1% 45.9%, rgba(135,212,250,0.27) 0.78px, transparent 1.18px),
+    radial-gradient(circle at 79.0% 37.1%, rgba(135,212,250,0.28) 0.96px, transparent 1.36px),
+    radial-gradient(circle at 43.5% 16.9%, rgba(135,212,250,0.2) 0.64px, transparent 1.04px),
+    radial-gradient(circle at 76.2% 12.9%, rgba(135,212,250,0.3) 0.59px, transparent 0.99px),
+    radial-gradient(circle at 28.8% 84.3%, rgba(135,212,250,0.24) 0.73px, transparent 1.13px),
+    radial-gradient(circle at 17.8% 40.4%, rgba(135,212,250,0.21) 0.59px, transparent 0.99px),
+    radial-gradient(circle at 47.9% 65.9%, rgba(135,212,250,0.34) 0.54px, transparent 0.94px),
+    radial-gradient(circle at 43.0% 28.5%, rgba(135,212,250,0.2) 0.61px, transparent 1.01px),
+    radial-gradient(circle at 39.1% 22.1%, rgba(135,212,250,0.23) 0.79px, transparent 1.19px),
+    radial-gradient(circle at 69.5% 35.1%, rgba(135,212,250,0.36) 0.81px, transparent 1.21px),
+    radial-gradient(circle at 63.8% 67.9%, rgba(135,212,250,0.28) 0.94px, transparent 1.34px),
+    radial-gradient(circle at 70.5% 6.4%, rgba(135,212,250,0.26) 0.74px, transparent 1.14px),
+    radial-gradient(circle at 96.5% 7.8%, rgba(135,212,250,0.34) 0.81px, transparent 1.21px),
+    radial-gradient(circle at 70.8% 2.7%, rgba(135,212,250,0.41) 0.62px, transparent 1.02px),
+    radial-gradient(circle at 45.4% 21.4%, rgba(135,212,250,0.24) 0.77px, transparent 1.17px),
+    radial-gradient(circle at 80.9% 97.4%, rgba(135,212,250,0.19) 0.79px, transparent 1.19px),
+    radial-gradient(circle at 56.6% 56.5%, rgba(135,212,250,0.38) 0.96px, transparent 1.36px),
+    radial-gradient(circle at 65.6% 3.6%, rgba(135,212,250,0.42) 0.65px, transparent 1.05px),
+    radial-gradient(circle at 6.1% 41.6%, rgba(135,212,250,0.37) 0.53px, transparent 0.93px),
+    radial-gradient(circle at 30.0% 32.7%, rgba(135,212,250,0.3) 0.64px, transparent 1.04px),
+    radial-gradient(circle at 21.5% 74.9%, rgba(135,212,250,0.29) 0.6px, transparent 1.0px),
+    radial-gradient(circle at 35.3% 63.1%, rgba(135,212,250,0.27) 0.88px, transparent 1.28px),
+    radial-gradient(circle at 54.5% 77.8%, rgba(135,212,250,0.25) 0.88px, transparent 1.28px),
+    radial-gradient(circle at 92.2% 48.0%, rgba(135,212,250,0.29) 0.58px, transparent 0.98px),
+    radial-gradient(circle at 23.3% 56.1%, rgba(135,212,250,0.38) 0.97px, transparent 1.37px),
+    radial-gradient(circle at 95.2% 93.1%, rgba(135,212,250,0.18) 0.69px, transparent 1.09px),
+    radial-gradient(circle at 48.8% 87.5%, rgba(135,212,250,0.36) 0.55px, transparent 0.95px),
+    radial-gradient(circle at 69.7% 10.8%, rgba(135,212,250,0.26) 0.84px, transparent 1.24px),
+    radial-gradient(circle at 78.4% 78.9%, rgba(135,212,250,0.25) 0.73px, transparent 1.13px),
+    radial-gradient(circle at 71.3% 62.0%, rgba(135,212,250,0.3) 0.66px, transparent 1.06px),
+    radial-gradient(circle at 70.4% 11.8%, rgba(135,212,250,0.26) 0.56px, transparent 0.96px),
+    radial-gradient(circle at 70.7% 68.6%, rgba(135,212,250,0.2) 0.92px, transparent 1.32px),
+    radial-gradient(circle at 57.5% 59.2%, rgba(135,212,250,0.28) 0.76px, transparent 1.16px),
+    radial-gradient(circle at 22.3% 66.1%, rgba(135,212,250,0.36) 0.72px, transparent 1.12px);
+  animation:oeDriftFar 90s linear infinite alternate; }
+/* 近层：略亮略大，漂移稍快，形成视差 */
+.oe-bg-stars::after {
+  background-image:
+    radial-gradient(circle at 63.9% 3.3%, rgba(175,222,248,0.54) 1.3px, transparent 1.7px),
+    radial-gradient(circle at 46.6% 5.1%, rgba(175,222,248,0.49) 1.46px, transparent 1.86px),
+    radial-gradient(circle at 12.1% 11.9%, rgba(175,222,248,0.28) 1.04px, transparent 1.44px),
+    radial-gradient(circle at 32.2% 58.8%, rgba(175,222,248,0.4) 0.98px, transparent 1.38px),
+    radial-gradient(circle at 14.9% 18.2%, rgba(175,222,248,0.29) 1.25px, transparent 1.65px),
+    radial-gradient(circle at 76.2% 78.1%, rgba(175,222,248,0.33) 0.85px, transparent 1.25px),
+    radial-gradient(circle at 78.5% 94.8%, rgba(175,222,248,0.52) 1.15px, transparent 1.55px),
+    radial-gradient(circle at 23.6% 42.3%, rgba(175,222,248,0.4) 0.89px, transparent 1.29px),
+    radial-gradient(circle at 65.8% 52.0%, rgba(175,222,248,0.35) 1.18px, transparent 1.58px),
+    radial-gradient(circle at 89.9% 78.8%, rgba(175,222,248,0.31) 1.01px, transparent 1.41px),
+    radial-gradient(circle at 64.1% 96.2%, rgba(175,222,248,0.3) 0.83px, transparent 1.23px),
+    radial-gradient(circle at 45.6% 44.1%, rgba(175,222,248,0.31) 1.43px, transparent 1.83px),
+    radial-gradient(circle at 95.5% 59.4%, rgba(175,222,248,0.43) 1.14px, transparent 1.54px),
+    radial-gradient(circle at 6.3% 33.8%, rgba(175,222,248,0.4) 0.99px, transparent 1.39px),
+    radial-gradient(circle at 29.3% 17.4%, rgba(175,222,248,0.45) 0.9px, transparent 1.3px),
+    radial-gradient(circle at 73.6% 24.0%, rgba(175,222,248,0.55) 1.1px, transparent 1.5px);
+  animation:oeDriftNear 62s linear infinite alternate; }
+@keyframes oeDriftFar { from{transform:translate3d(0,0,0)} to{transform:translate3d(-14px,9px,0)} }
+@keyframes oeDriftNear { from{transform:translate3d(0,0,0)} to{transform:translate3d(11px,-13px,0)} }
+
 .oe-startup-stage {
   --oe-off-x:2px;--oe-off-y:3.6px;--oe-glow-alpha:.08;--oe-p:0;
   width:min(1480px,96vw);display:flex;flex-direction:column;align-items:stretch;
@@ -192,7 +281,7 @@
 .oe-ruler-scale span::before { content:'';position:absolute;top:-6px;left:50%;width:1px;height:4px;background:rgba(135,212,250,.28); }
 /* 四角系统读数：填充上下留白，营造仪表 surrounds，不抢字标 */
 .oe-hud { position:absolute;font-family:'Share Tech Mono','JetBrains Mono',ui-monospace,monospace;
-  font-size:10px;line-height:1.85;letter-spacing:.14em;color:rgba(158,196,222,.44);
+  font-size:12px;line-height:1.8;letter-spacing:.14em;color:rgba(158,196,222,.52);
   pointer-events:none;user-select:none; }
 .oe-hud b { font-weight:400;color:rgba(135,212,250,.72); }
 .oe-hud .k { color:rgba(150,180,205,.34); }
@@ -210,7 +299,7 @@
   transform-origin:17px 17px;animation:oeSpin 6s linear infinite; }
 @keyframes oeSpin { to { transform:rotate(360deg); } }
 @media(max-width:640px){
-  .oe-hud { font-size:8px;line-height:1.7;letter-spacing:.08em; }
+  .oe-hud { font-size:10px;line-height:1.7;letter-spacing:.08em; }
   .oe-hud-tl,.oe-hud-tr { top:3.5%; } .oe-hud-bl,.oe-hud-br { bottom:3.5%; }
   .oe-hud-tl,.oe-hud-bl { left:4%; } .oe-hud-tr,.oe-hud-br { right:4%; }
   .oe-hud-line { width:76px;margin:4px 0; }
@@ -219,6 +308,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .oe-hud-ring .rd { animation:none; }
+  .oe-bg-stars::before,.oe-bg-stars::after { animation:none; }
 }
 @media(max-width:640px){
   .oe-startup-stage { --oe-off-x:5.5px;--oe-off-y:9.5px; }
@@ -497,6 +587,7 @@
 <div class="nebula"><div class="orb"></div><div class="orb"></div></div>
 
 <div id="loading-overlay" role="status" aria-live="polite" aria-label="OrbitEye Initializing">
+  <div class="oe-bg" aria-hidden="true"><div class="oe-bg-grid"></div><div class="oe-bg-stars"></div></div>
   <div class="oe-hud oe-hud-tl">
     <span class="k">SYSTEM / </span>ORBIT EYE <b>MK.IV</b><br>
     <span class="k">NODE / </span>DSN-CN-01<br>

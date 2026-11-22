@@ -773,7 +773,7 @@ if (earthObj && earthObj.moon) {
 // ──────────────────────────────────────────────────────
 //  逻辑控制与交互增强
 // ──────────────────────────────────────────────────────
-let focus=0,speed=1,tRY=0,tZoom=16,ssRY=0,ssZoom=16,isPinching=false;
+let focus=0,speed=1,tRY=0,tRPitch=0,tZoom=16,ssRY=0,ssRPitch=0,ssZoom=16,isPinching=false;
 // ✊ 握拳推近 / 转拳旋转：pushTarget 由手势层写入，pushLevel 在动画里平滑跟随。
 //    两者分离是为了「手一松就自然回弹」，也为非手势模式（键鼠）保持 0。
 let pushTarget=0, pushLevel=0, spinAccum=0;
@@ -888,6 +888,9 @@ function focusPlanet(idx) {
   // 深空站压小场景星点（否则会有二三十像素的柔光斑糊在柱体前面）
   applyStarScale(isDeep(idx));
   tRY = 0;
+  tRPitch = 0;
+  ssRY = 0;
+  ssRPitch = 0;
   tZoom = focusZoom(idx);
   window._zoomTarget = tZoom;   // 切站时同步目标，避免上一站残留距离被 rAF 拉回来
   triggerAlert(isDeep(idx) ? '🌌 ' + focusName(idx) : '🔭 ' + focusName(idx));
@@ -1243,7 +1246,7 @@ function triggerWarp(){
         // 平滑值"当起点，镜头会先弹一下再跟上。
         window._pushSmooth = undefined;
         window._lastOpenWrist = undefined;
-        window._lastFistWrist = undefined;
+        window._lastOpenWristY = undefined;
         window._hoverStable = 0;
         window._twoStable = 0;
         if (satOpenTimer) { clearTimeout(satOpenTimer); satOpenTimer = null; }
@@ -1353,14 +1356,14 @@ function triggerWarp(){
           }
 
           if (fingers.isOpen) {
-            // 🖐️ 张手：退到「观察位」—— 比默认机位更远，一眼看全目标
+            // 🖐️ 张手：退到「观察位」—— 比默认机位更远，一眼看全目标。
+            // 用户反馈 2× 还不够远，改成 3×（深空 17→51，太阳 18→54，都在 72 上限内）。
             const fz = isDeep(focus) ? deepOf(focus).zoom : (planetZoomDist[P[focus].t] || 2.0);
-            window._zoomTarget = Math.min(60, fz * 2.0);   // 只写目标，插值交给 rAF
+            window._zoomTarget = Math.min(72, fz * 3.0);   // 只写目标，插值交给 rAF
             window._pushTarget = 0;
             markGesture('open');
             window._lastRoll = undefined;
-            window._lastFistWrist = undefined;
-            stMode.textContent = '🖐️ 张手：拉远观察';
+            stMode.textContent = '🖐️ 张手：拉远 · 移动手掌拖动星球';
           } else if (fingers.isFist) {
             // ✊ 握拳：用「掌长」（腕→中指根）当"离镜头多近"。
             //    它与手指是否伸开无关，握拳时依然稳定，比指尖距离可靠得多。
@@ -1397,24 +1400,15 @@ function triggerWarp(){
             }
             window._lastRoll = roll;
 
-            // 转拳太吃力时的替代：握拳后整只手左右平移也能旋转目标。
-            // 和转拳累加到同一个 spinAccum，语义完全一致，不会互相覆盖。
-            // 死区 + 单帧上限滤掉摄像头抖动；yaw/roll 照常生效，两者可叠加。
-            if (window._lastFistWrist !== undefined) {
-              const dw = wrist.x - window._lastFistWrist;
-              if (Math.abs(dw) > 0.005 && Math.abs(dw) < 0.12) {
-                spinAccum += Math.max(-0.30, Math.min(0.30, dw * 2.6));
-                window._rollHotUntil = now + 400;
-              }
-            }
-            window._lastFistWrist = wrist.x;
+            // ⚠️ 握拳平移旋转已按用户要求删除：平移只归张手，
+            //    握拳只负责推近 + 转拳，避免两个语义抢同一个手部位移。
+            // 转拳的 400ms 热窗内同时点亮 03 握拳 + 04 转拳（手型仍是握拳）
             markGesture(now < (window._rollHotUntil || 0) ? ['fist', 'roll'] : 'fist');
           } else if (fingers.isTwoFinger) {
             // ✌️ 双指不在推近/拉远的语义里，提示与卫星网入口保持一致
             markGesture('two');
             window._pushTarget = 0;
             window._lastRoll = undefined;
-            window._lastFistWrist = undefined;
             stMode.textContent = (focus === 3) ? '✌️ 双指：停留 0.9 秒部署卫星网' : '✌️ 双指：切到地球可部署卫星网';
           } else {
             markGesture('edge');
@@ -1438,18 +1432,30 @@ function triggerWarp(){
           stMode.textContent = '✌️ 双指：部署卫星网...';
         }else{ clearTimeout(satOpenTimer); satOpenTimer=null; }
 
-        // 张手时左右移动手腕 = 绕目标换视角。
-        // ⚠️ 这里必须是「增量式」：旧写法 tRY=(wrist.x-0.5)*2.2π 是绝对映射，
-        //    手在偏左/偏右时一张手，相机会瞬间跳到对应角度 —— 看起来就是"一抖"。
-        //    改成累加位移、带死区与单帧上限，手感变成"推着画面转"。
+        // 🖐️ 张手时移动手掌 = 拖着星球走（左右绕视、上下抬降机位）。
+        // ⚠️ 必须增量式：绝对映射 tRY=(wrist.x-0.5)*2π 会在手偏侧时一张手就跳角度。
+        //    握拳平移已删除，所以这里的位移不会再和推近/转拳抢语义。
         if (fingers.isOpen) {
-          if (window._lastOpenWrist !== undefined) {
+          if (window._lastOpenWrist !== undefined && window._lastOpenWristY !== undefined) {
             const dw = wrist.x - window._lastOpenWrist;
-            if (Math.abs(dw) > 0.004 && Math.abs(dw) < 0.12) tRY += dw * Math.PI * 1.6;
+            const dy = wrist.y - window._lastOpenWristY;
+            // 死区滤摄像头抖动；单帧上限防手一晃把星球甩飞。
+            // 左右移动 = 直接转动目标本身（手往右，球面纹理也往右走）；
+            // 握拳平移已删，所以这个位移只归张手，不会和推近抢语义。
+            if (Math.abs(dw) > 0.003 && Math.abs(dw) < 0.12) {
+              spinAccum -= Math.max(-0.30, Math.min(0.30, dw * 4.0));
+              markGesture('open');
+            }
+            // 上下移动 = 抬降机位，看清星球的极点/底面
+            if (Math.abs(dy) > 0.003 && Math.abs(dy) < 0.12) {
+              tRPitch = Math.max(-0.55, Math.min(0.55, tRPitch + dy * 1.8));
+            }
           }
           window._lastOpenWrist = wrist.x;
+          window._lastOpenWristY = wrist.y;
         } else {
           window._lastOpenWrist = undefined;
+          window._lastOpenWristY = undefined;
         }
       }
 
@@ -1969,7 +1975,8 @@ const _pressureEl = document.getElementById('void-pressure');
     // 又不至于把柱体糊成一片"的折中（0.12 时代几乎看不出推近，0.34 会糊墙）。
     const pushK = (d.kind === 'blackhole') ? 0.34 : 0.14;
     const dist = baseDist * (1 - pushK * pushLevel) * (window._cardActive ? 0.90 : 1) * (innerWidth < 700 ? 1.45 : 1);
-    followPlanet(tx, ty, tz, 0, 0.4 + pushLevel * 0.15, dist, 0.05);
+    // 深空站也响应张手上下平移；幅度小一点，避免体积场被从柱底/柱顶看穿。
+    followPlanet(tx, ty, tz, 0, 0.4 + pushLevel * 0.15 + ssRPitch * 1.2, dist, 0.05);
     d.fade += (1 - d.fade) * 0.05;
     d.obj.setOpacity(d.fade);
     d.obj.setPush(pushLevel);
@@ -2014,9 +2021,12 @@ const _pressureEl = document.getElementById('void-pressure');
     } else {
       // 🔓 状态 B：手势松开（解除捏合）— 平滑退回宏观大视角
       ssRY += (tRY - ssRY) * 0.09;
+      ssRPitch += (tRPitch - ssRPitch) * 0.09;
       ssZoom += (tZoom - ssZoom) * 0.12;
 
-      const pitchY = (focus === 0) ? ssZoom * 0.55 : ssZoom * 0.42;
+      // 张手上下平移改变机位高度；用 ssRPitch 平滑，避免摄像头 landmark 抖动直传镜头。
+      const pitchBase = (focus === 0) ? 0.55 : 0.42;
+      const pitchY = ssZoom * pitchBase * (1 + ssRPitch);
       // 这里的 baseAngle 极为关键！退远时也保持侧向，保证倒车绝对安全
       const baseAngle = camAzimuth(focus, now) + ssRY;
       // 同上：绕行半径既要 ≤ 轨道半径 0.58，也要保证离太阳至少 5.0（日冕外径 4.03）

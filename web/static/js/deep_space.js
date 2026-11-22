@@ -911,7 +911,7 @@ void main(){
   float depth = clamp(1.12 - lum * 1.42 + warm * 0.42, 0.0, 1.0);
   float dust = smoothstep(0.34, 0.78, depth);
 
-  // 转拳/握拳平移 → uYaw：前景位移约为背景的 4 倍，另有极小的旋转，
+  // 转拳 → uYaw：前景位移约为背景的 4 倍，另有极小的旋转，
   // 所以肉眼能读出「柱子在转」，但不会转到把照片拉烂。
   // 饱和曲线：手势可以一直转，但视觉响应封顶。照片是 2.5D，硬套大角度
   // 会把不同深度的像素撕开（第一版旋转截图里的「镂空剪纸」就是这么来的）。
@@ -1389,7 +1389,7 @@ void main() {
       _rt: rt, _mat: mat, _disp: dispMat,  // QA 只读句柄：检查 RT / 着色器状态
       get yaw(){ return yaw; },
       setYaw(v){ yaw = v; },
-      spin(a){ yaw += a; },        // 转拳/握拳平移：真实 3D 相机绕柱群，语义与黑洞一致
+      spin(a){ yaw += a; },        // 转拳：真实 3D 相机绕柱群，语义与黑洞一致
       setOpacity(o) {
         opacity = o;
         dispMat.uniforms.uOpacity.value = o;

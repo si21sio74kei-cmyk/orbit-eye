@@ -1356,54 +1356,25 @@ function triggerWarp(){
           }
 
           if (fingers.isOpen) {
-            // 🖐️ 张手：退到「观察位」—— 比默认机位更远，一眼看全目标。
-            // 用户反馈 2× 还不够远，改成 3×（深空 17→51，太阳 18→54，都在 72 上限内）。
+            // 🖐️ 张手：退到「观察位」—— 用户反馈 3× 仍不够远，改成 4.2×。
+            // 相机越过星壳内缘(55)时把场景星点隐藏，否则 sizeAttenuation 会放大成光斑。
             const fz = isDeep(focus) ? deepOf(focus).zoom : (planetZoomDist[P[focus].t] || 2.0);
-            window._zoomTarget = Math.min(72, fz * 3.0);   // 只写目标，插值交给 rAF
+            window._zoomTarget = Math.min(96, fz * 4.2);   // 只写目标，插值交给 rAF
             window._pushTarget = 0;
-            markGesture('open');
+            markGesture(['open', 'openSpin']);
             window._lastRoll = undefined;
-            stMode.textContent = '🖐️ 张手：拉远 · 移动手掌拖动星球';
+            stMode.textContent = '🖐️ 张手：拉远 · 左右移动旋转星球 / 上下移动俯仰';
           } else if (fingers.isFist) {
-            // ✊ 握拳：用「掌长」（腕→中指根）当"离镜头多近"。
-            //    它与手指是否伸开无关，握拳时依然稳定，比指尖距离可靠得多。
+            // ✊ 握拳：只负责拉近，不再带任何旋转（转拳旋转与握拳平移都已删除）。
+            //    用「掌长」（腕→中指根）当"离镜头多近"，握拳时依然稳定。
             const handSpan = Math.hypot(lm[9].x - wrist.x, lm[9].y - wrist.y);
-            // 手臂自然弯曲 ≈0.095，贴到镜头前 ≈0.20 → 归一化成 0..1
             let push = (handSpan - 0.095) / 0.105;
-            push = Math.max(0, Math.min(1, push));
-            // ⚠️ 只在"正在转拳"时低通：转拳会让手掌平面倾斜、掌长的 2D 投影被压短，
-            //    原始值会掉下去 → 镜头在推近过程中反复回退，手感像卡顿。
-            //    单纯推近时不平滑，保持 1:1 跟随（不然推拉会有延迟感）。
-            const spinning = now < (window._rollHotUntil || 0);
-            window._pushSmooth = (!spinning || window._pushSmooth === undefined)
-              ? push
-              : window._pushSmooth + (push - window._pushSmooth) * 0.72;
-            window._pushTarget = window._pushSmooth;
-            // 推近时把「观察位」慢慢收回默认机位，避免张手后退远过的距离一直卡着
+            window._pushTarget = Math.max(0, Math.min(1, push));
+            // 推近时把「观察位」收回默认机位，避免张手退远过的距离一直卡着
             const fz = isDeep(focus) ? deepOf(focus).zoom : (planetZoomDist[P[focus].t] || 2.0);
-            window._zoomTarget = fz;   // 推近时把"观察位"慢慢收回默认机位
-            stMode.textContent = '✊ 推近 ' + Math.round(window._pushSmooth * 100) + '% · 转拳旋转目标';
-
-            // 转拳旋转：手掌平面倾角（食指根 5 → 小指根 17 的连线）。
-            // x 取镜像，保证"手在屏幕上顺时针转，目标也顺时针转"。
-            const roll = Math.atan2(lm[17].y - lm[5].y, -(lm[17].x - lm[5].x));
-            if (window._lastRoll !== undefined) {
-              let dr = roll - window._lastRoll;
-              dr = Math.atan2(Math.sin(dr), Math.cos(dr));   // 最短弧，跨 ±π 不跳
-              // 死区滤掉 landmark 抖动；上限防止单帧误判把目标甩飞
-              if (Math.abs(dr) > 0.012 && Math.abs(dr) < 0.6) {
-                spinAccum += dr * 1.55;
-                // 高亮保持 400ms：原来只在"这一帧确实转了"才点亮，手一停就掉，
-                // 顶部「04 转拳旋转」会以 30Hz 一闪一闪。
-                window._rollHotUntil = now + 400;
-              }
-            }
-            window._lastRoll = roll;
-
-            // ⚠️ 握拳平移旋转已按用户要求删除：平移只归张手，
-            //    握拳只负责推近 + 转拳，避免两个语义抢同一个手部位移。
-            // 转拳的 400ms 热窗内同时点亮 03 握拳 + 04 转拳（手型仍是握拳）
-            markGesture(now < (window._rollHotUntil || 0) ? ['fist', 'roll'] : 'fist');
+            window._zoomTarget = fz;
+            stMode.textContent = '✊ 推近 ' + Math.round(window._pushTarget * 100) + '%';
+            markGesture('fist');
           } else if (fingers.isTwoFinger) {
             // ✌️ 双指不在推近/拉远的语义里，提示与卫星网入口保持一致
             markGesture('two');
@@ -1432,23 +1403,23 @@ function triggerWarp(){
           stMode.textContent = '✌️ 双指：部署卫星网...';
         }else{ clearTimeout(satOpenTimer); satOpenTimer=null; }
 
-        // 🖐️ 张手时移动手掌 = 拖着星球走（左右绕视、上下抬降机位）。
+        // 🖐️ 张手 = 拉远 + 按手掌移动方向转动星球（左右自转 / 上下俯仰）。
         // ⚠️ 必须增量式：绝对映射 tRY=(wrist.x-0.5)*2π 会在手偏侧时一张手就跳角度。
-        //    握拳平移已删除，所以这里的位移不会再和推近/转拳抢语义。
+        //    握拳不再带旋转，所以这个位移只归张手，语义不打架。
         if (fingers.isOpen) {
           if (window._lastOpenWrist !== undefined && window._lastOpenWristY !== undefined) {
             const dw = wrist.x - window._lastOpenWrist;
             const dy = wrist.y - window._lastOpenWristY;
             // 死区滤摄像头抖动；单帧上限防手一晃把星球甩飞。
-            // 左右移动 = 直接转动目标本身（手往右，球面纹理也往右走）；
-            // 握拳平移已删，所以这个位移只归张手，不会和推近抢语义。
+            // 左右移动 = 直接转动目标本身（手往右，球面纹理也往右走）。
             if (Math.abs(dw) > 0.003 && Math.abs(dw) < 0.12) {
-              spinAccum -= Math.max(-0.30, Math.min(0.30, dw * 4.0));
-              markGesture('open');
+              spinAccum -= Math.max(-0.35, Math.min(0.35, dw * 5.0));
+              markGesture(['open', 'openSpin']);
             }
             // 上下移动 = 抬降机位，看清星球的极点/底面
             if (Math.abs(dy) > 0.003 && Math.abs(dy) < 0.12) {
               tRPitch = Math.max(-0.55, Math.min(0.55, tRPitch + dy * 1.8));
+              markGesture(['open', 'openSpin']);
             }
           }
           window._lastOpenWrist = wrist.x;
@@ -1861,6 +1832,10 @@ const _pressureEl = document.getElementById('void-pressure');
   if (!isPinching && window._zoomTarget !== undefined) {
     tZoom += (window._zoomTarget - tZoom) * (1 - Math.pow(0.90, dt));
   }
+  // 张手拉到星壳内缘(z≈55)以内/附近时隐藏场景星点：sizeAttenuation 会把近处
+  // 星点放大成二三十像素的光斑。深空站本来就隐藏，这里只补上远距离行星站。
+  const hideStars = isDeep(focus) || tZoom > 50;
+  if (_starPts.visible === hideStars) applyStarScale(hideStars);
   const fovWant = 55 - 9.5 * pushLevel;
   if (Math.abs(ssCam.fov - fovWant) > 0.02) { ssCam.fov = fovWant; ssCam.updateProjectionMatrix(); }
   if (_pressureEl) _pressureEl.style.opacity = (pushLevel * 0.95).toFixed(3);
@@ -1948,9 +1923,9 @@ const _pressureEl = document.getElementById('void-pressure');
     // 标签就会慢一帧（实测偏差最高 57px），肉眼看到的就是「名字抖动 / 有虚影”。
   });
 
-  // 🖐️ 转拳旋转：手转过的角度直接叠加到当前目标上 ——
+  // 🖐️ 张手旋转：手掌左右移动直接叠加到当前目标上 ——
   //    行星 = 本体自转；黑洞 = 绕它转视角（吸积盘朝向随之变化）；星云 = 整体转动。
-  //    用"位置式"而不是"速度式"，转多少跟多少，手停就停，没有惯性漂移。
+  //    用"增量式"而不是"绝对式"，手停就停，没有惯性漂移。握拳已不带旋转。
   if (spinAccum !== 0) {
     const sA = Math.max(-0.42, Math.min(0.42, spinAccum));
     if (isDeep(focus)) deepOf(focus).obj.spin(sA);

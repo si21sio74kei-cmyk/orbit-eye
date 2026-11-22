@@ -85,7 +85,56 @@ function orbitPoint(p, nu, out){
   );
 }
 window.__KEPLER__ = P.map(p => ({name:p.n, a:p.a, v:p.v})); // 暴露给验证脚本核对比例
-const PC={sun:0xffdd44,mercury:0xb0ada6,venus:0xe8dcc8,earth:0x3388dd,mars:0xd45a38,jupiter:0xd4b896,saturn:0xe8d5b0,uranus:0xb8d8d8,neptune:0xa0c8d8};
+const PC={sun:0xffdd44,mercury:0xb0ada6,venus:0xe8dcc8,earth:0x3388dd,mars:0xd45a38,jupiter:0xd4b896,saturn:0xe8d5b0,uranus:0xb8d8d8,neptune:0xa0c8d8,
+  pillars:0x6cb6e8, blackhole:0x8fd4ff};
+
+// ═══════════════════════════════════════════════════════════════
+//  🌌 深空档案：焦点序列在 9 大行星之后新增两站 —— 创生之柱 / M87* 黑洞。
+//  设计约束：P 数组必须保持 9 项（开普勒时序 QA 依赖 __KEPLER__ = P.map），
+//  所以深空目标独立成 DEEP 数组，通过统一访问函数接入，绝不往 P 里塞。
+//  ⚠️ 这两站是【程序化 3D 建模】，不是照片贴图：
+//     · 黑洞走广义相对论光线偏折 raymarch（见 deep_space.js）；
+//     · 创生之柱是十万级体积点云塑形。
+//     所以来源标注必须写"程序化建模"，不能冒充 NASA 原始影像。
+// ═══════════════════════════════════════════════════════════════
+const DEEP = [
+  { name:'创生之柱', type:'pillars', kind:'pillars',
+    pos:new THREE.Vector3(0, 4, -150), s:5.4, zoom:17,
+    note:'这几根由气体与尘埃构成的柱子位于鹰状星云 M16，距离地球约 6500 光年；最近的大质量恒星正用紫外线与恒星风把它们慢慢雕刻、蒸发。',
+    facts:[
+      {label:'所在星云', value:'鹰状星云 M16'},
+      {label:'距离地球', value:'约 6,500 光年'},
+      {label:'最高柱体', value:'约 4 光年'},
+      {label:'主要成分', value:'分子氢与尘埃'},
+      {label:'首次拍摄', value:'哈勃 1995 年'},
+      {label:'重拍', value:'哈勃 2015 年 WFC3'},
+      {label:'尺度', value:'横跨约 20 光年'},
+      {label:'状态', value:'恒星形成区'}
+    ],
+    source:'程序化建模 · 结构依据哈勃 M16 影像' },
+  { name:'M87* 黑洞', type:'blackhole', kind:'blackhole',
+    pos:new THREE.Vector3(150, 4, 0), s:3.6, zoom:14,
+    note:'这是人类拍到的第一张黑洞影像：事件视界望远镜在 2019 年公布的 M87 星系中心超大质量黑洞。亮环是被引力透镜弯曲的吸积盘光，中间的暗影是事件视界。',
+    facts:[
+      {label:'所在星系', value:'M87（室女座 A）'},
+      {label:'距离地球', value:'约 5,500 万光年'},
+      {label:'质量', value:'约 65 亿倍太阳'},
+      {label:'视界直径', value:'约 400 亿公里'},
+      {label:'首次成像', value:'2019 年 4 月'},
+      {label:'观测手段', value:'事件视界望远镜'},
+      {label:'观测波段', value:'1.3 mm 射电'},
+      {label:'自转轴', value:'指向地球附近'}
+    ],
+    source:'程序化建模 · 基于广义相对论光线偏折' }
+];
+const STOP_N = P.length + DEEP.length;          // 焦点循环总站点 = 11
+const isDeep = i => i >= P.length;
+const deepOf = i => DEEP[i - P.length];
+function focusName(i){ return isDeep(i) ? deepOf(i).name : P[i].n; }
+function focusType(i){ return isDeep(i) ? deepOf(i).type : P[i].t; }
+function focusSize(i){ return isDeep(i) ? deepOf(i).s : P[i].s; }
+function focusZoom(i){ return isDeep(i) ? deepOf(i).zoom : (planetZoomDist[P[i].t] || 2.0); }
+function focusPos(i){ return isDeep(i) ? deepOf(i).pos : ssObjs[i].mesh.position; }
 
 // 🛡️ 紋理載入器（跨域開放）
 // 🚀【彻底修复】：接入全球最稳定的开源天文贴图库 (threex.planets)，提供全套高清PBR纹理
@@ -114,6 +163,21 @@ const TX_EXTRA = {
 const BUMP_SCALE = { mercury:0.014, earth:0.010, mars:0.012 };
 const texLoader = new THREE.TextureLoader();
 texLoader.setCrossOrigin('anonymous');
+
+// 🔬 贴图锐度：默认只在正对视线的方向清晰，斜看时靠 mipmap 糊成一片。
+// 行星聚焦时贴图是被斜着看的（球面除了正中全是斜视），不开各向异性过滤，
+// 放大后整颗球会像蒙了一层雾——这就是"不够真实"的主因之一。
+const MAX_ANISO = (() => {
+  try { return ssRn.capabilities.getMaxAnisotropy(); } catch (e) { return 4; }
+})();
+function tuneTex(tex){
+  if (!tex) return tex;
+  tex.anisotropy = MAX_ANISO;
+  tex.minFilter = THREE.LinearMipMapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
 
 // 贴图调色：threex.planets 的水星/金星贴图是色彩增强过的（水星金褐、金星橙褐），
 // 与肉眼观感差很远。这里按亮度重映射拉回真实色调——水星中性灰、金星明亮黄白。
@@ -211,6 +275,19 @@ ssS.add(new THREE.HemisphereLight(0x8899cc, 0x112244, 0.16));
   ssS.add(mw);
 })();
 
+// 星点柔光贴图：PointsMaterial 默认画的是硬方块，深空特写（创生之柱 / 黑洞）时
+// 那些方块会被放大到 4~5px，非常出戏。统一换成柔边圆形点。
+const _starDotTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const rg = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  rg.addColorStop(0, 'rgba(255,255,255,1)');
+  rg.addColorStop(0.42, 'rgba(255,255,255,.60)');
+  rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 32, 32);
+  const t = new THREE.CanvasTexture(c);
+  return t;
+})();
 // 星空背景 — 多层星场: 远处密集暗星 + 近处亮星
 const starGeo=new THREE.BufferGeometry(), starPos=new Float32Array(3000*3);
 for(let i=0;i<1500;i++){
@@ -230,12 +307,26 @@ starGeo.setAttribute('position',new THREE.BufferAttribute(starPos,3));
 const starColors=new Float32Array(3000*3);
 for(let i=0;i<3000;i++){const b=0.6+Math.random()*0.4;const tint=Math.random();starColors[i*3]=b*(tint<0.1?0.7:1);starColors[i*3+1]=b*(tint<0.1?0.8:1);starColors[i*3+2]=b*(tint<0.05?0.6:1);}
 starGeo.setAttribute('color',new THREE.BufferAttribute(starColors,3));
-ssS.add(new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:.15,transparent:true,opacity:.75,vertexColors:true})));
+const _starPts=new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:.17,map:_starDotTex,alphaTest:.01,transparent:true,opacity:.75,vertexColors:true,depthWrite:false}));
+ssS.add(_starPts);
 // 亮星十字光芒层
 const brightStarsGeo=new THREE.BufferGeometry(), brightPos=new Float32Array(200*3);
 for(let i=0;i<200;i++){const r=50+Math.random()*20,theta=Math.random()*Math.PI*2,phi=Math.acos(2*Math.random()-1);brightPos[i*3]=r*Math.sin(phi)*Math.cos(theta);brightPos[i*3+1]=r*Math.sin(phi)*Math.sin(theta);brightPos[i*3+2]=r*Math.cos(phi);}
 brightStarsGeo.setAttribute('position',new THREE.BufferAttribute(brightPos,3));
-ssS.add(new THREE.Points(brightStarsGeo,new THREE.PointsMaterial({color:0xaaccff,size:.35,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false})));
+const _brightPts=new THREE.Points(brightStarsGeo,new THREE.PointsMaterial({color:0xaaccff,size:.40,map:_starDotTex,alphaTest:.01,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+ssS.add(_brightPts);
+
+// 🌌 深空站要把这两层星点压小压淡：
+//    星点材质开了 sizeAttenuation，深空焦点离星壳只有几十单位，
+//    个别星就会被放大成二三十像素的柔光斑（像镜头虚化），在柱体前面很脏。
+//    深空自己的星空由着色器里的 starField 负责，不需要这两层。
+function applyStarScale(deep){
+  // 直接隐藏，而不是"缩小"：星点开了 sizeAttenuation，只要有一颗离相机足够近，
+  // 0.12 的尺寸也会被放大到 40px —— 缩小治不了根。
+  // 深空站的星空由黑洞着色器里的 starField 和星云背景负责，不需要这两层。
+  _starPts.visible = !deep;
+  _brightPts.visible = !deep;
+}
 
 // 💫 流星 — 12 條隨機出現的宇宙光軌
 const shootingStars = [];
@@ -270,10 +361,68 @@ function spawnShootingStar() {
 
 const ssObjs=[];
 
+// ══════════════════════════════════════════════════════════
+//  大气层壳 — 真实感最关键的一层
+//  旧实现只看「法线·视线」，得到一圈均匀发光的贴纸环：夜面也亮、朝阳面也不更亮。
+//  真实大气是被恒星照亮的气体：**朝阳边缘最亮、夜面几乎消失、逆光时前向散射更亮**。
+//  这里三个因子相乘（边缘 / 昼夜 / 前向散射），并随握拳推近整体增强 ——
+//  贴到行星脸上时，那圈蓝边会明显"胀"起来，压迫感就来自这里。
+// ══════════════════════════════════════════════════════════
+const ATMO_VS = `
+varying vec3 vN;
+varying vec3 vWP;
+void main(){
+  vN = normalize(mat3(modelMatrix) * normal);
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWP = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`;
+const ATMO_FS = `
+precision highp float;
+varying vec3 vN;
+varying vec3 vWP;
+uniform vec3 uColor;
+uniform vec3 uLight;
+uniform float uPow;
+uniform float uAmt;
+uniform float uPush;
+void main(){
+  vec3 N = normalize(vN);
+  vec3 V = normalize(cameraPosition - vWP);
+  vec3 L = normalize(uLight - vWP);
+  float edge = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), uPow);   // 边缘增厚（视线穿过的气体更多）
+  float day  = smoothstep(-0.30, 0.55, dot(N, L));            // 夜面不发光
+  float fwd  = pow(clamp(dot(-V, L), 0.0, 1.0), 2.2);         // 逆光前向散射
+  float a = edge * day * (0.55 + 0.85 * fwd) * uAmt * (1.0 + 0.75 * uPush);
+  gl_FragColor = vec4(uColor * (0.80 + 0.45 * fwd), a);
+}`;
+const _sunPos = new THREE.Vector3(0, 0, 0);
+function addAtmosphere(mesh, radius, color, powv, amt){
+  const m = new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: {value: new THREE.Color(color)},
+      uLight: {value: _sunPos},
+      uPow:   {value: powv},
+      uAmt:   {value: amt},
+      uPush:  {value: 0}
+    },
+    vertexShader: ATMO_VS,
+    fragmentShader: ATMO_FS,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.FrontSide
+  });
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.035, 72, 72), m);
+  shell.renderOrder = 2;
+  mesh.add(shell);
+  return m;
+}
+
 P.forEach((p,i)=>{
   // 球體幾何（岩石行星用更高面數以呈現紋理細節）
   const isRocky = ['mercury','venus','earth','mars'].includes(p.t);
-  const geo = new THREE.SphereGeometry(p.s, isRocky?256:128, isRocky?256:128);
+  const geo = new THREE.SphereGeometry(p.s, isRocky?256:192, isRocky?256:192);
   let mat;
   // ── PBR 物理材質 + 高清紋理 ──
       if (p.t === 'sun') {
@@ -293,18 +442,26 @@ P.forEach((p,i)=>{
             // 这两张贴图是色彩增强过的雷达/拼接图：水星被染成金褐色、金星被染成橙褐色，
             // 和肉眼观感差得远。这里在 canvas 里做一次去饱和/提亮，还原真实色调。
             loadRetinted(TX[p.t], p.t, tex => {
-              mat.map = tex;
+              mat.map = tuneTex(tex);
               mat.color.setHex(0xffffff);
               mat.needsUpdate = true;
             });
           } else {
             texLoader.load(TX[p.t], tex => { 
               tex.encoding = THREE.sRGBEncoding; 
-              mat.map = tex; 
+              mat.map = tuneTex(tex); 
               // 🚀【核心修复】：贴图加载成功后，必须立刻把模型的底色洗成纯白(0xffffff)！
               // 否则高清贴图会被原本的单色严重污染，导致画面发黑失真！
               mat.color.setHex(0xffffff); 
               mat.needsUpdate = true; 
+              // 气态行星没有独立凹凸图：把自身色彩图当极弱的凹凸图用。
+              // 云带本来就有明暗层次，转成法线扰动后，贴近看能看出"云在起伏"而不是一张平面贴纸。
+              if (p.t === 'jupiter' || p.t === 'saturn' || p.t === 'venus') {
+                mat.bumpMap = tex;
+                mat.bumpScale = 0.0035;
+                mesh.userData.bump = {mat, base: 0.0035};
+                mat.needsUpdate = true;
+              }
             });
           }
         }
@@ -312,8 +469,9 @@ P.forEach((p,i)=>{
         const bkey = {mercury:'mercuryBump', earth:'earthBump', mars:'marsBump'}[p.t];
         if (bkey && TX_EXTRA[bkey]) {
           texLoader.load(TX_EXTRA[bkey], tex => {
-            mat.bumpMap = tex;
+            mat.bumpMap = tuneTex(tex);
             mat.bumpScale = BUMP_SCALE[p.t] || 0.01;
+            mesh.userData.bump = {mat, base: mat.bumpScale};
             mat.needsUpdate = true;
           });
         }
@@ -400,29 +558,20 @@ P.forEach((p,i)=>{
     ssS.add(glowCore);
   }
 
-  // 🌍 地球大气光晕
-  if (p.t === 'earth') {
-    const aGeo = new THREE.SphereGeometry(p.s*1.08, 64, 64);
-    const aMat = new THREE.ShaderMaterial({
-      uniforms: {c: {value: new THREE.Color(0x4499ff)}, p: {value: 4.0}},
-      vertexShader: 'varying vec3 vN; void main(){vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-      fragmentShader: 'uniform vec3 c; uniform float p; varying vec3 vN; void main(){float d=dot(vN,vec3(0,0,1)); float i=pow(1.0-clamp(d,0.0,1.0),p)*smoothstep(0.0,0.32,d); gl_FragColor=vec4(c,i*0.30);}',
-      side: THREE.FrontSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
-    });
-    mesh.add(new THREE.Mesh(aGeo, aMat));
-  }
-
-  // 🌫️ 菲涅尔大气边缘光 — 金星 + 气态巨行星
-  const fc = {venus:'#f5ead5', jupiter:'#ddbb88', saturn:'#eedd99', uranus:'#c8e8e0', neptune:'#b0d8e0'};
-  if (fc[p.t]) {
-    const fGeo = new THREE.SphereGeometry(p.s*1.055, 64, 64);
-    const fMat = new THREE.ShaderMaterial({
-      uniforms: {c: {value: new THREE.Color(fc[p.t])}, p: {value: 3.5}},
-      vertexShader: 'varying vec3 vN; void main(){vN=normalize(normalMatrix*normal); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-      fragmentShader: 'uniform vec3 c; uniform float p; varying vec3 vN; void main(){float d=dot(vN,vec3(0,0,1)); float i=pow(1.0-clamp(d,0.0,1.0),p*0.8)*smoothstep(0.0,0.55,d); gl_FragColor=vec4(c,i*0.22);}',
-      side: THREE.FrontSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
-    });
-    mesh.add(new THREE.Mesh(fGeo, fMat));
+  // 🌍🪐 大气层：地球 / 金星 / 火星 / 四颗巨行星各自的大气厚度与色温都不同
+  //    水星没有大气（物理上就该是一颗裸岩），所以刻意不给它加壳。
+  const ATMO = {
+    venus:  [0xf7e6bd, 2.5, 0.62],
+    earth:  [0x5aa9ff, 2.9, 0.90],
+    mars:   [0xd08a5a, 3.6, 0.26],
+    jupiter:[0xf2d0a4, 3.2, 0.34],
+    saturn: [0xf6e6bd, 3.2, 0.30],
+    uranus: [0x9fe4e8, 2.7, 0.58],
+    neptune:[0x7db6ee, 2.7, 0.58]
+  };
+  if (ATMO[p.t]) {
+    const a = ATMO[p.t];
+    mesh.userData.atmo = addAtmosphere(mesh, p.s, a[0], a[1], a[2]);
   }
 
   // 🔭 木星伽利略四大衛星 — Io, Europa, Ganymede, Callisto
@@ -504,6 +653,22 @@ P.forEach((p,i)=>{
   ssObjs.push({mesh, dist:p.d, speed:p.v, angle:Math.random()*Math.PI*2, name:p.n, type:p.t, orbitMat});
 });
 
+// 🌌 深空档案实体：真正的 3D 建模（deep_space.js），不是平面贴图。
+//   黑洞 = 引力透镜 raymarch（离屏低分辨率渲染，只在聚焦时跑）；
+//   创生之柱 = 九万余体积粒子 + 上升气流。
+//   平时 opacity=0 完全不可见，焦点切过去时淡入，画面被建模铺满 = 星际飞跃。
+DEEP.forEach(d => {
+  const obj = (d.kind === 'blackhole')
+    ? window.DSMDEEP.createBlackHole()
+    : window.DSMDEEP.createPillars();
+  obj.group.position.copy(d.pos);
+  obj.setOpacity(0);
+  ssS.add(obj.group);
+  d.obj = obj;
+  d.fade = 0;
+  d.material = { opacity: 0 };   // 兼容旧引用（只作为淡入淡出状态镜像）
+});
+
 // ☄️ 小行星帶 — 火星(d=12.0) 與木星(d=16.5) 之間，按 2.2–3.3 AU 映射到 12.9–14.6
 const astGeo = new THREE.BufferGeometry();
 const astCount = 7000, astPosArr = new Float32Array(astCount * 3), astColArr = new Float32Array(astCount * 3);
@@ -573,6 +738,23 @@ const planetLabels = ssObjs.map(o => {
   labelDiv.appendChild(lbl);
   return lbl;
 });
+// 深空两站也各有标签（文本/颜色用 DEEP 的 name/type，与行星标签同构）
+DEEP.forEach(d => {
+  const lbl = document.createElement('div');
+  lbl.style.cssText = 'position:absolute;left:0;top:0;transform:translate3d(-9999px,-9999px,0);will-change:transform;';
+  const inner = document.createElement('span');
+  inner.style.cssText = 'display:inline-block;font-family:var(--title);font-size:13px;letter-spacing:2px;'
+    + 'white-space:nowrap;transform:translate(-50%,-50%) scale(.92);transform-origin:center;'
+    + 'will-change:transform,opacity;'
+    + 'transition:transform .3s var(--ease),opacity .3s var(--ease),text-shadow .3s var(--ease);';
+  inner.textContent = d.name;
+  const tc = '#' + PC[d.type].toString(16).padStart(6, '0');
+  inner.style.color = tc;
+  inner.style.textShadow = `0 0 3px ${tc}55, 0 0 6px ${tc}22`;
+  lbl.__inner = inner; lbl.__tc = tc; lbl.appendChild(inner);
+  labelDiv.appendChild(lbl);
+  planetLabels.push(lbl);   // 索引 9/10 与焦点一一对应
+});
 
 // 🌙 把月球加入場景
 if (earthObj && earthObj.moon) {
@@ -592,9 +774,19 @@ if (earthObj && earthObj.moon) {
 //  逻辑控制与交互增强
 // ──────────────────────────────────────────────────────
 let focus=0,speed=1,tRY=0,tZoom=16,ssRY=0,ssZoom=16,isPinching=false;
+// ✊ 握拳推近 / 转拳旋转：pushTarget 由手势层写入，pushLevel 在动画里平滑跟随。
+//    两者分离是为了「手一松就自然回弹」，也为非手势模式（键鼠）保持 0。
+let pushTarget=0, pushLevel=0, spinAccum=0;
+window._pushTarget = 0;
+// 摄像头回调通常只有 30fps，直接在回调里逐次改 tZoom 会产生可见的阶梯感。
+// 回调只写"目标值"，真正的插值放到 rAF 主循环里按 dt 做 —— 手势才跟得上丝。
+window._zoomTarget = tZoom;
 let camOn=false,camStream=null,hands=null,trail=[],satActive=false,satData=null,satOpenTimer=null;
 let satRn=null, satCam=null;  // 卫星图渲染器引用，供 resize 同步尺寸
 let camBusy=false, camGen=0;  // 加载锁防双开；代际号让旧 pump 循环在关闭后自动退出
+// ⚠️ 必须初始化为 0：边缘切站的判定是 `now - _lastHoverAction > 2000`，
+//    留 undefined 时是 NaN > 2000 === false —— 第一次悬停永远不生效（用户得先悬停两次）。
+window._lastHoverAction = 0;
 let fpsCount=0,fpsStart=performance.now();
 window._hoverFrames=0; window._hoverZone='none'; window._lastHoverAction=0; window._cardActive=false;
 window._satTargetDistance=3.5; window._satCurrentDistance=3.5;
@@ -615,13 +807,23 @@ const _lookOff = new THREE.Vector3();           // 视点残余偏移（换焦�
 // 改极坐标后：方位走最短弧旋转、半径/高度各走标量插值，永远不经过零点。
 let _offAz = null, _offR = 0, _offY = 0;
 let _camAz = null, _camAzFocus = -1;
+// 切站飞行：focusPlanet 只换"目标偏移"，相机若直接取新偏移就是一帧硬切。
+// 记录起点，在 rAF 里把相机从起点平滑送到 followPlanet 算出的机位。
+let _fly = null;
 function camAzimuth(i, now){
   const target = (i === 0) ? (now * 0.02) : (ssObjs[i].angle - 1.57);
   if (_camAz === null || _camAzFocus !== i) { _camAz = target; _camAzFocus = i; return _camAz; }
   if (i === 0) { _camAz = target; return _camAz; }
   let d = target - _camAz;
   d = Math.atan2(Math.sin(d), Math.cos(d));      // 取最短弧，避免绕过 2π 时甩镜头
-  _camAz += d * 0.02;
+  // 【关键】跟随系数必须按公转角速度自适应，不能用固定 2%：
+  // 水星 v=4.15，每帧目标角跳 ~0.086rad，固定 2% 追不上 → 稳态滞后积累到 2.03rad(116°)，
+  // 镜头方向从「轨道切向」偏到「径向内侧」，太阳扫过相机侧面，投影除零式发散
+  // （实测屏幕 x 在 ±760 万像素间跳）= 用户看到的「越靠太阳越抖」。
+  // k ≈ 0.02 + v*0.18 让各行星稳态滞后统一在 ~0.1rad(6°)：
+  // 相机始终贴着轨道切向，太阳稳定在侧向，保留侧舷伴飞视差又不甩镜头。
+  const k = Math.min(0.9, 0.02 + (ssObjs[i].speed || 0) * 0.18);
+  _camAz += d * k;
   return _camAz;
 }
 function followPlanet(tx, ty, tz, ox, oy, oz, k){
@@ -678,28 +880,67 @@ const planetZoomDist = {
   neptune: 3.8
 };
 function focusPlanet(idx) {
+  idx = (idx % STOP_N + STOP_N) % STOP_N;   // 11 站循环
+  const prevDeep = isDeep(focus);
+  const oldTp = focusPos(focus);            // 切之前的观察点，用来量这次跳跃有多远
   focus = idx;
   updateUI();
+  // 深空站压小场景星点（否则会有二三十像素的柔光斑糊在柱体前面）
+  applyStarScale(isDeep(idx));
   tRY = 0;
-  tZoom = planetZoomDist[P[idx].t] || 2.0;
-  triggerAlert('🔭 ' + P[focus].n);
+  tZoom = focusZoom(idx);
+  window._zoomTarget = tZoom;   // 切站时同步目标，避免上一站残留距离被 rAF 拉回来
+  triggerAlert(isDeep(idx) ? '🌌 ' + focusName(idx) : '🔭 ' + focusName(idx));
 
-  // 换焦点时保持镜头稳定：方位角【直接对齐】新行星的标准侧舷位，不做绕行。
-  // 之前是让方位角从旧方向慢慢转过去，可场景是压缩过的（木星轨道才 16.5、太阳半径 3.5），
-  // 镜头绕着新行星转的那段弧一定会从太阳旁边擦过 —— 太阳的投影会在 ±几万像素之间爆掉，
-  // 肉眼看到的就是"切星球时太阳剧烈抖动"。只有半径/高度继续做标量插值，观感是干净的推拉。
-  const tp = ssObjs[idx] && ssObjs[idx].mesh ? ssObjs[idx].mesh.position : null;
+  // 星际飞跃：在「行星↔深空」或「深空↔深空」之间跨越时播放穿越动效（星线拉伸）。
+  // 同行星之间不播，避免每次切星都闪。
+  // 只要这一段旅程涉及深空（海王星→创生之柱→黑洞→太阳），每一跳都播放穿越动效
+  if (prevDeep || isDeep(idx)) {
+    triggerWarp();
+    // 飞跃期间点亮 HUD 第 07 项；动效结束后交还给手势识别结果
+    if (window.__markGesture__) {
+      window.__markGesture__('warp');
+      clearTimeout(window.__warpHintTimer);
+      window.__warpHintTimer = setTimeout(() => {
+        if (window.__activeGesture__ === 'warp') window.__markGesture__('');
+      }, 1600);
+    }
+  }
+
+  // 换焦点时保持镜头稳定：方位角【直接对齐】新目标的标准位，不做绕行。
+  const tp = focusPos(idx);
   if (tp) {
     const dx = ssCam.position.x - tp.x, dy = ssCam.position.y - tp.y, dz = ssCam.position.z - tp.z;
-    const cap = (P[idx].d || 30) * 0.58;        // 绕行半径上限：不得超过行星轨道半径的 58%
-    let rr = Math.sqrt(dx * dx + dz * dz);
-    if (!isFinite(rr) || rr < 0.6) rr = cap * 0.8;
-    _offAz = camAzimuth(idx, performance.now());  // 直接到位，不绕行
-    _offR = Math.min(rr, cap);
-    _offY = dy;
+    if (isDeep(idx)) {
+      // 深空机位固定是 (0, y, +dist) → atan2(z,x)=π/2。
+      // 旧代码写 0，切站后 followPlanet 每帧要把方位从 0 拉到 π/2，
+      // 于是镜头绕着目标多甩 90° —— 这是深空切换抖动的一个隐蔽来源。
+      _offAz = Math.PI / 2;
+      _offR = Math.min(Math.abs(dz), deepOf(idx).zoom * 1.6);
+      _offY = dy;
+    } else {
+      // 绕行半径上限：不得超过轨道半径的 58%，且相机到太阳至少留 5.0 单位
+      const orbitR = Math.hypot(tp.x, tp.z) || (P[idx].d || 30);
+      const cap = Math.min(orbitR * 0.58, Math.max(1.0, orbitR - 5.0));
+      let rr = Math.sqrt(dx * dx + dz * dz);
+      if (!isFinite(rr) || rr < 0.6) rr = cap * 0.8;
+      _offAz = camAzimuth(idx, performance.now());
+      _offR = Math.min(rr, cap);
+      _offY = dy;
+    }
     _lookOff.copy(window._camTarget).sub(tp);
   }
   _camAzFocus = -1;   // 新焦点重新对齐方位角基准
+
+  // 远距离换站走一段短飞行，而不是镜头一帧瞬移（瞬移在视觉上就是"闪一下/抖一下"）。
+  // 行星之间 650ms，涉及深空的 900ms —— 正好藏在 warp 动效下面。
+  const nowTp = focusPos(idx);
+  const travel = (oldTp && nowTp) ? oldTp.distanceTo(nowTp) : 0;
+  // 阈值要小：金星→地球目标只差几个单位，但机位重算仍会跳 ~5 单位；
+  // 2.5 的阈值会把这种小跳漏掉（实测 peak 4.86/帧）。
+  if (travel > 0.6) _fly = { from: ssCam.position.clone(), start: performance.now(),
+                             dur: (prevDeep || isDeep(idx)) ? 900 : 650 };
+  else _fly = null;
 }
 
 function pointToScreen(pt){
@@ -754,7 +995,7 @@ function countExtendedFingers(hand){
   };
 }
 
-function updateUI(){ document.getElementById('st-planet').textContent=P[focus].n; }
+function updateUI(){ document.getElementById('st-planet').textContent=focusName(focus); }
 
 // ──────────────────────────────────────────────────────
 //  行星卡布局：横向紧凑卡，贴聚焦星球左上角（右下角靠近星球左上象限）；
@@ -768,7 +1009,7 @@ function updateUI(){ document.getElementById('st-planet').textContent=P[focus].n
 function planetScreenR(dist){
   const h = window.innerHeight * 0.5;
   const tanHalf = Math.tan(ssCam.fov * 0.5 * Math.PI / 180) || 0.52;
-  return (P[focus].s / Math.max(dist, 0.15)) * h / tanHalf;
+  return (focusSize(focus) / Math.max(dist, 0.15)) * h / tanHalf;
 }
 
 // 把聚焦星球投影成屏幕坐标 + 真实半径，交给 layoutCard
@@ -892,7 +1133,26 @@ function layoutCard(sx, sy, rPx){
 }
 
 function showCard(){
-  const p=P[focus], c=document.getElementById('planet-card'), tc='#'+PC[p.t].toString(16).padStart(6,'0');
+  const c=document.getElementById('planet-card');
+  // 🌌 深空档案：本地真实数据（NASA/ESA/EHT），不走 planet-info API
+  if(isDeep(focus)){
+    const d = deepOf(focus), tc = '#' + PC[d.type].toString(16).padStart(6,'0');
+    c.style.setProperty('--planet-tint', tc);
+    const factHTML = d.facts.map(f => `<div class="pc-fact"><dt>${escHTML(f.label)}</dt><dd>${escHTML(f.value)}</dd></div>`).join('');
+    c.innerHTML=`<div class="pc-head">
+        <span class="pc-swatch" aria-hidden="true"></span>
+        <h2 class="pc-title">${escHTML(d.name)}</h2>
+        <span class="pc-class">深空档案</span>
+      </div>
+      <dl class="pc-facts">${factHTML}</dl>
+      <div class="pc-note"><span class="pc-note-label">观测札记</span><p>${escHTML(d.note)}</p></div>
+      <div class="pc-source">${escHTML(d.source)}</div>`;
+    c.style.display='block'; c.classList.add('show');
+    window._cardActive = true;
+    ++cardGen;
+    return;
+  }
+  const p=P[focus], tc='#'+PC[p.t].toString(16).padStart(6,'0');
   const myGen = ++cardGen;
   c.style.setProperty('--planet-tint', tc);
   c.innerHTML=`<div class="pc-loading">
@@ -913,6 +1173,11 @@ function showCard(){
       const classText = category || (p.t === 'sun' ? '恒星' : '行星');
       const note = PLANET_NOTES[p.t] || '';
       const factHTML = facts.map(f => `<div class="pc-fact"><dt>${escHTML(f.label)}</dt><dd>${escHTML(f.value)}</dd></div>`).join('');
+      // 轨道距离是可视化压缩（否则海王星要远 30 倍，单屏放不下）→ 必须诚实标注真实半长轴，
+      // 避免把渲染距离误当成真实比例。用主色小字内联，不增加卡片高度（保持贴左上不遮球）。
+      const auTag = (p.a > 0)
+        ? `<span class="pc-au">真实半长轴 ${escHTML(p.a.toFixed(3))} AU · 轨道为压缩显示</span>`
+        : '';
       c.innerHTML=`<div class="pc-head">
           <span class="pc-swatch" aria-hidden="true"></span>
           <h2 class="pc-title">${escHTML(data.planet || p.n)}</h2>
@@ -920,7 +1185,7 @@ function showCard(){
         </div>
         <dl class="pc-facts">${factHTML}</dl>
         ${note ? `<div class="pc-note"><span class="pc-note-label">观测札记</span><p>${escHTML(note)}</p></div>` : ''}
-        <div class="pc-source">数据来源 · ${escHTML(src)}</div>`;
+        <div class="pc-source">${auTag}数据来源 · ${escHTML(src)}</div>`;
     }catch(e){
       if(myGen !== cardGen) return;
       c.innerHTML=`<div class="pc-head"><span class="pc-swatch"></span><h2 class="pc-title">${escHTML(p.n)}</h2></div>
@@ -931,9 +1196,268 @@ function showCard(){
 
 function triggerAlert(msg){ const a=document.getElementById('swipe-alert'); a.textContent=msg; a.classList.add('show'); setTimeout(()=>a.classList.remove('show'),800); }
 
+// 🌌 星际飞跃过场：星线从画面中心向四周拉伸 + 短暂蓝白闪光，营造穿越感。
+// 纯 CSS 动效，不碰 3D 场景；reduced-motion 下自动降级为无动画。
+function triggerWarp(){
+  const ov = document.getElementById('warp-overlay');
+  if(!ov || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  ov.classList.remove('run'); void ov.offsetWidth;  // reflow 重启动画
+  ov.classList.add('run');
+  clearTimeout(triggerWarp._t);
+  triggerWarp._t = setTimeout(()=> ov.classList.remove('run'), 1500);
+}
+
 // ──────────────────────────────────────────────────────
 //  AI 摄像头识别中枢
 // ──────────────────────────────────────────────────────
+  // 顶部一排提示的"当前手势"高亮。只改 class，不碰文案/布局；
+  // 只有当识别结果真的变化时才写 DOM，避免每帧触发样式重算。
+  const _hudGestures = Array.from(document.querySelectorAll('#hud-top .gesture'));
+  function markGesture(key){
+    const keys = Array.isArray(key) ? key : (key ? [key] : []);
+    const sig = keys.join('|');
+    if (window.__activeGesture__ === sig) return;
+    window.__activeGesture__ = sig;
+    _hudGestures.forEach(el => el.classList.toggle('live', keys.includes(el.dataset.gesture)));
+  }
+  window.__markGesture__ = markGesture;   // QA 可直接断言高亮状态
+
+  // ══════════════════════════════════════════════════════════
+  //  手势语义总入口（从 onResults 里抽出来，独立成函数）
+  //  抽出来的原因：这样 QA 可以用合成关键点跑遍每一种手势，
+  //  不用真的对着摄像头比划，交互回归才有办法自动化。
+  //  lm = MediaPipe 21 点（原始未镜像坐标），now = ms
+  // ══════════════════════════════════════════════════════════
+  function handleHandLandmarks(lm, now){
+      if(!lm){
+        window._hoverZone='none'; window._hoverFrames=0; updateHoverUI(); isPinching=false;
+        markGesture('');
+        document.getElementById('st-mode').textContent='未检测到手掌'; 
+        window._lastWristX = undefined; 
+        window._lastSpan = undefined; // 🖐️ 手离开时，同步清除“张合度”追踪记录
+        // 手离开画面必须立刻撤销推近与旋转基准：否则镜头会停在"最近"处不动，
+        // 再次入画时第一帧的 roll 差值还会被当成一次大旋转。
+        window._pushTarget = 0;
+        window._lastRoll = undefined;
+        // 同步清空推近/巡视的中间态：不清的话，下次入画第一帧会拿"上次的掌长
+        // 平滑值"当起点，镜头会先弹一下再跟上。
+        window._pushSmooth = undefined;
+        window._lastOpenWrist = undefined;
+        window._lastFistWrist = undefined;
+        window._hoverStable = 0;
+        window._twoStable = 0;
+        if (satOpenTimer) { clearTimeout(satOpenTimer); satOpenTimer = null; }
+        return;
+      }
+      // 提取小拇指尖(20)，用来和拇指(4)测算手掌最大跨度
+      const wrist=lm[0], tip=lm[8], thumb=lm[4], pinky=lm[20];
+      const fingers=countExtendedFingers(lm);
+      
+      // 💡【神级调优】：只计算 X 和 Y 的 2D 屏幕投影距离，彻底丢弃波动的 Z 轴深度数据！
+      const pinchDist = Math.hypot(thumb.x - tip.x, thumb.y - tip.y);
+      isPinching = (pinchDist < 0.06) && !fingers.isFist; 
+      
+      // 📏 计算手掌的“绝对物理跨度”（大拇指尖到小拇指尖的距离），用于连续推拉变焦
+      const spanDist = Math.hypot(pinky.x - thumb.x, pinky.y - thumb.y);
+
+      document.getElementById('st-open').textContent = Math.round(fingers.openness * 100) + '% | ' + fingers.extended + '指';
+      
+      // 语义文案只由下方分支写一次。旧版在这里先写一版"单食指/握拳"再被覆盖，
+      // 两处文案不一致时会闪一下错误提示，也让顶部高亮无从判断当前手势。
+      window._hoverZone='none';
+      if(fingers.isIndex){
+        if(tip.x < 0.25) {
+          window._hoverZone='right';  // 镜像修正：画面左侧=物理右手→右光幕
+          document.getElementById('st-mode').textContent = '☝️ 锁定右边缘 >>>';
+        } else if(tip.x > 0.75) {
+          window._hoverZone='left';   // 镜像修正：画面右侧=物理左手→左光幕
+          document.getElementById('st-mode').textContent = '☝️ 锁定左边缘 <<<';
+        } else {
+          document.getElementById('st-mode').textContent = '☝️ 单食指：请移向屏幕边缘';
+        }
+      }
+      // 边缘切星防误触：只有「指尖停住不动」的帧才算有效停留。
+      // 旧版只数帧数，手在边缘晃一下、或只是路过，也会累计到 30 帧切站。
+      if(window._hoverZone!=='none'){
+        window._hoverFrames++;
+        if(window._lastHoverTip && Math.hypot(tip.x-window._lastHoverTip.x, tip.y-window._lastHoverTip.y) < 0.020)
+          window._hoverStable = (window._hoverStable || 0) + 1;
+        else window._hoverStable = 0;
+      } else { window._hoverFrames=0; window._hoverStable=0; }
+      window._lastHoverTip = { x:tip.x, y:tip.y };
+      updateHoverUI();
+
+      if(window._hoverFrames > 30 && window._hoverStable > 22 && now - window._lastHoverAction > 2000){
+        window._lastHoverAction = now;
+        if(satActive){
+          if(window._hoverZone==='left') closeSatMap();  // 需要长按2秒左边缘才关闭
+        }else{
+          if(window._hoverZone==='left'){ focusPlanet((focus-1)%STOP_N); }
+          else if(window._hoverZone==='right'){ focusPlanet((focus+1)%STOP_N); }
+        }
+        window._hoverFrames=0; window._hoverStable=0;
+      }
+
+      if(satActive){
+        // 🚀 速度驱动旋转：手掌滑动速度 = 地球旋转速度（1:1 响应，无延迟）
+        if (window._lastWristX !== undefined) {
+          const dx = wrist.x - window._lastWristX;
+          // dx 有效时才注入速度；手停后保留上帧速度，交给卫星图动画按摩擦衰减
+          if (Math.abs(dx) > 0.0005) window._satRotationVelocity = dx * 5.5;
+        }
+        window._lastWristX = wrist.x;
+
+        // 卫星图里的语义必须和太阳系主视图完全一致：握拳推近、张手拉远。
+        // 旧版这里反过来写（握拳看全轨道），用户从主视图切进卫星图会瞬间懵。
+        if (fingers.isFist) {
+          markGesture('fist');
+          const hs = Math.hypot(lm[9].x - wrist.x, lm[9].y - wrist.y);
+          window._pushTarget = Math.max(0, Math.min(1, (hs - 0.095) / 0.105));
+          window._satTargetDistance = 2.4;
+          window._lastRoll = undefined;
+        } else if (fingers.isOpen) {
+          markGesture('open');
+          window._pushTarget = 0;
+          window._satTargetDistance = 5.6;
+          window._lastRoll = undefined;
+        } else {
+          markGesture(fingers.isTwoFinger ? 'two' : 'edge');
+          window._pushTarget = 0;
+          window._satTargetDistance = 4.0;
+          window._lastRoll = undefined;
+        }
+        document.getElementById('st-mode').textContent = fingers.isFist
+          ? '✊ 推近卫星图 ' + Math.round(window._pushTarget * 100) + '%'
+          : (fingers.isOpen ? '🖐️ 拉远卫星图 · 左右滑动换视角' : '✌️ 卫星图：握拳推近 / 张手拉远');
+      }else{
+        // ══════════════════════════════════════════════════════
+        //  ✊ 握拳 = 推近（手离镜头越近越近）；转拳 = 目标跟着转
+        //  🖐️ 张手 = 拉远观察；✌️ 双指 = 卫星网
+        //  三个手势互斥、语义单一，不再出现"握拳既拉远又开卫星图"的冲突。
+        // ══════════════════════════════════════════════════════
+        const stMode = document.getElementById('st-mode');
+
+        if(isPinching){
+          markGesture('pinch');
+          stMode.textContent = '双指捏合：追踪聚焦并开启信息卡';
+          window._pushTarget = 0;
+          window._lastRoll = undefined;
+          if(!window._cardActive){ window._cardActive=true; showCard(); }
+        } else {
+          // 松开捏合 → 收起信息卡
+          if(window._cardActive) {
+             const c = document.getElementById('planet-card');
+             c.classList.remove('show');
+             window._cardActive=false;
+             setTimeout(()=> { if(!window._cardActive) c.style.display='none'; }, 300);
+          }
+
+          if (fingers.isOpen) {
+            // 🖐️ 张手：退到「观察位」—— 比默认机位更远，一眼看全目标
+            const fz = isDeep(focus) ? deepOf(focus).zoom : (planetZoomDist[P[focus].t] || 2.0);
+            window._zoomTarget = Math.min(60, fz * 2.0);   // 只写目标，插值交给 rAF
+            window._pushTarget = 0;
+            markGesture('open');
+            window._lastRoll = undefined;
+            window._lastFistWrist = undefined;
+            stMode.textContent = '🖐️ 张手：拉远观察';
+          } else if (fingers.isFist) {
+            // ✊ 握拳：用「掌长」（腕→中指根）当"离镜头多近"。
+            //    它与手指是否伸开无关，握拳时依然稳定，比指尖距离可靠得多。
+            const handSpan = Math.hypot(lm[9].x - wrist.x, lm[9].y - wrist.y);
+            // 手臂自然弯曲 ≈0.095，贴到镜头前 ≈0.20 → 归一化成 0..1
+            let push = (handSpan - 0.095) / 0.105;
+            push = Math.max(0, Math.min(1, push));
+            // ⚠️ 只在"正在转拳"时低通：转拳会让手掌平面倾斜、掌长的 2D 投影被压短，
+            //    原始值会掉下去 → 镜头在推近过程中反复回退，手感像卡顿。
+            //    单纯推近时不平滑，保持 1:1 跟随（不然推拉会有延迟感）。
+            const spinning = now < (window._rollHotUntil || 0);
+            window._pushSmooth = (!spinning || window._pushSmooth === undefined)
+              ? push
+              : window._pushSmooth + (push - window._pushSmooth) * 0.72;
+            window._pushTarget = window._pushSmooth;
+            // 推近时把「观察位」慢慢收回默认机位，避免张手后退远过的距离一直卡着
+            const fz = isDeep(focus) ? deepOf(focus).zoom : (planetZoomDist[P[focus].t] || 2.0);
+            window._zoomTarget = fz;   // 推近时把"观察位"慢慢收回默认机位
+            stMode.textContent = '✊ 推近 ' + Math.round(window._pushSmooth * 100) + '% · 转拳旋转目标';
+
+            // 转拳旋转：手掌平面倾角（食指根 5 → 小指根 17 的连线）。
+            // x 取镜像，保证"手在屏幕上顺时针转，目标也顺时针转"。
+            const roll = Math.atan2(lm[17].y - lm[5].y, -(lm[17].x - lm[5].x));
+            if (window._lastRoll !== undefined) {
+              let dr = roll - window._lastRoll;
+              dr = Math.atan2(Math.sin(dr), Math.cos(dr));   // 最短弧，跨 ±π 不跳
+              // 死区滤掉 landmark 抖动；上限防止单帧误判把目标甩飞
+              if (Math.abs(dr) > 0.012 && Math.abs(dr) < 0.6) {
+                spinAccum += dr * 1.55;
+                // 高亮保持 400ms：原来只在"这一帧确实转了"才点亮，手一停就掉，
+                // 顶部「04 转拳旋转」会以 30Hz 一闪一闪。
+                window._rollHotUntil = now + 400;
+              }
+            }
+            window._lastRoll = roll;
+
+            // 转拳太吃力时的替代：握拳后整只手左右平移也能旋转目标。
+            // 和转拳累加到同一个 spinAccum，语义完全一致，不会互相覆盖。
+            // 死区 + 单帧上限滤掉摄像头抖动；yaw/roll 照常生效，两者可叠加。
+            if (window._lastFistWrist !== undefined) {
+              const dw = wrist.x - window._lastFistWrist;
+              if (Math.abs(dw) > 0.005 && Math.abs(dw) < 0.12) {
+                spinAccum += Math.max(-0.30, Math.min(0.30, dw * 2.6));
+                window._rollHotUntil = now + 400;
+              }
+            }
+            window._lastFistWrist = wrist.x;
+            markGesture(now < (window._rollHotUntil || 0) ? ['fist', 'roll'] : 'fist');
+          } else if (fingers.isTwoFinger) {
+            // ✌️ 双指不在推近/拉远的语义里，提示与卫星网入口保持一致
+            markGesture('two');
+            window._pushTarget = 0;
+            window._lastRoll = undefined;
+            window._lastFistWrist = undefined;
+            stMode.textContent = (focus === 3) ? '✌️ 双指：停留 0.9 秒部署卫星网' : '✌️ 双指：切到地球可部署卫星网';
+          } else {
+            markGesture('edge');
+            window._pushTarget = 0;
+            window._lastRoll = undefined;
+            stMode.textContent = '☝️ 单指：移到左右边缘可切换目标';
+          }
+        }
+
+        // ✌️ 双指保持 0.9s → 部署卫星网（地球专属）。
+        // 之前这个入口占用"握拳"，与推近天然冲突；握拳还给"推近/旋转"，卫星网改用双指。
+        // 双指部署防误触：手要相对停住（腕点每帧位移 < 0.02）才算持续 intention。
+        // 挥手时食指+中指偶尔同时伸直，旧版会累计到 0.9s 直接弹出卫星网。
+        if(window._lastTwoWrist !== undefined &&
+           Math.hypot(wrist.x-window._lastTwoWrist.x, wrist.y-window._lastTwoWrist.y) < 0.020)
+          window._twoStable = (window._twoStable || 0) + 1;
+        else window._twoStable = 0;
+        window._lastTwoWrist = { x:wrist.x, y:wrist.y };
+        if(fingers.isTwoFinger && focus===3 && !satActive && window._twoStable > 8){
+          if(!satOpenTimer) satOpenTimer=setTimeout(()=>{openSatMap();satOpenTimer=null;},900);
+          stMode.textContent = '✌️ 双指：部署卫星网...';
+        }else{ clearTimeout(satOpenTimer); satOpenTimer=null; }
+
+        // 张手时左右移动手腕 = 绕目标换视角。
+        // ⚠️ 这里必须是「增量式」：旧写法 tRY=(wrist.x-0.5)*2.2π 是绝对映射，
+        //    手在偏左/偏右时一张手，相机会瞬间跳到对应角度 —— 看起来就是"一抖"。
+        //    改成累加位移、带死区与单帧上限，手感变成"推着画面转"。
+        if (fingers.isOpen) {
+          if (window._lastOpenWrist !== undefined) {
+            const dw = wrist.x - window._lastOpenWrist;
+            if (Math.abs(dw) > 0.004 && Math.abs(dw) < 0.12) tRY += dw * Math.PI * 1.6;
+          }
+          window._lastOpenWrist = wrist.x;
+        } else {
+          window._lastOpenWrist = undefined;
+        }
+      }
+
+      handCtx.clearRect(0,0,innerWidth,innerHeight); drawHandSkeleton(lm);
+      
+  }
+  window.__handLandmarks__ = handleHandLandmarks;   // 只读调试入口（QA 用）
+
 async function initCam(){
   const btn=document.getElementById('btn-cam');
   if(camBusy) return;  // 加载中重复点击直接忽略，避免双开流/双 pump
@@ -962,137 +1486,8 @@ async function initCam(){
     hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
 
     hands.onResults(r => {
-      const lm=r.multiHandLandmarks?.[0];
-      if(!lm){
-        window._hoverZone='none'; window._hoverFrames=0; updateHoverUI(); isPinching=false;
-        document.getElementById('st-mode').textContent='未检测到手掌'; 
-        window._lastWristX = undefined; 
-        window._lastSpan = undefined; // 🖐️ 手离开时，同步清除“张合度”追踪记录
-        return;
-      }
-      // 提取小拇指尖(20)，用来和拇指(4)测算手掌最大跨度
-      const wrist=lm[0], tip=lm[8], thumb=lm[4], pinky=lm[20], now=Date.now();
-      const fingers=countExtendedFingers(lm);
-      
-      // 💡【神级调优】：只计算 X 和 Y 的 2D 屏幕投影距离，彻底丢弃波动的 Z 轴深度数据！
-      const pinchDist = Math.hypot(thumb.x - tip.x, thumb.y - tip.y);
-      isPinching = (pinchDist < 0.06) && !fingers.isFist; 
-      
-      // 📏 计算手掌的“绝对物理跨度”（大拇指尖到小拇指尖的距离），用于连续推拉变焦
-      const spanDist = Math.hypot(pinky.x - thumb.x, pinky.y - thumb.y);
-
-      document.getElementById('st-open').textContent = Math.round(fingers.openness * 100) + '% | ' + fingers.extended + '指';
-      
-      if (fingers.isIndex) {
-        document.getElementById('st-mode').textContent = '单食指 ☝️';
-      } else if (fingers.isTwoFinger) {
-        document.getElementById('st-mode').textContent = '双指 ✌️';
-      } else if (fingers.isOpen) {
-        document.getElementById('st-mode').textContent = '全张开 🖐️';
-      } else if (fingers.isFist) {
-        document.getElementById('st-mode').textContent = '握拳 ✊';
-      } else {
-        const fingerNames = ['握拳 ✊', '单食指 ☝️', '双指 ✌️', '三指 🤟', '全张开 🖐️'];
-        document.getElementById('st-mode').textContent = fingerNames[fingers.extended] || '全张开';
-      }
-
-      window._hoverZone='none';
-      if(fingers.isIndex){
-        if(tip.x < 0.25) {
-          window._hoverZone='right';  // 镜像修正：画面左侧=物理右手→右光幕
-          document.getElementById('st-mode').textContent = '☝️ 锁定右边缘 >>>';
-        } else if(tip.x > 0.75) {
-          window._hoverZone='left';   // 镜像修正：画面右侧=物理左手→左光幕
-          document.getElementById('st-mode').textContent = '☝️ 锁定左边缘 <<<';
-        } else {
-          document.getElementById('st-mode').textContent = '☝️ 单食指：请移向屏幕边缘';
-        }
-      }
-      if(window._hoverZone!=='none') window._hoverFrames++; else window._hoverFrames=0;
-      updateHoverUI();
-
-      if(window._hoverFrames > 30 && now - window._lastHoverAction > 2000){
-        window._lastHoverAction = now;
-        if(satActive){
-          if(window._hoverZone==='left') closeSatMap();  // 需要长按2秒左边缘才关闭
-        }else{
-          if(window._hoverZone==='left'){ focusPlanet((focus-1+P.length)%P.length); }
-          else if(window._hoverZone==='right'){ focusPlanet((focus+1)%P.length); }
-        }
-        window._hoverFrames=0;
-      }
-
-      if(satActive){
-        // 🚀 速度驱动旋转：手掌滑动速度 = 地球旋转速度（1:1 响应，无延迟）
-        if (window._lastWristX !== undefined) {
-          const dx = wrist.x - window._lastWristX;
-          // dx 有效时才注入速度；手停后保留上帧速度，交给卫星图动画按摩擦衰减
-          if (Math.abs(dx) > 0.0005) window._satRotationVelocity = dx * 5.5;
-        }
-        window._lastWristX = wrist.x;
-
-        if(fingers.isOpen){ 
-          window._satTargetDistance=2.0; 
-          document.getElementById('st-mode').textContent = '张手：放大近观并滑动旋转'; 
-        }
-        else if(fingers.isFist){ 
-          window._satTargetDistance=6.5; 
-          document.getElementById('st-mode').textContent = '握拳：看全轨道'; 
-        }
-        else { 
-          window._satTargetDistance=4.0; 
-          document.getElementById('st-mode').textContent = '✋ 请左右滑动拨动地球';
-        }
-      }else{
-        if(isPinching){
-          document.getElementById('st-mode').textContent = '双指捏合：追踪聚焦并开启信息卡';
-          if(!window._cardActive){ window._cardActive=true; showCard(); }
-        } else {
-          // 🚀【神级运镜：连续无级动态推拉】通过比对上一帧的手掌跨度，获取手掌开合的“速度矢量”
-          if (window._lastSpan !== undefined) {
-            const dSpan = spanDist - window._lastSpan;
-            
-            // 设立一个极其微小的死区 (0.003)，过滤掉手掌轻微颤抖的干扰
-            if (Math.abs(dSpan) > 0.003) {
-              // dSpan > 0 说明手指在撑开，立刻缩减 tZoom（向内拉近放大镜头）
-              // dSpan < 0 说明手指在收缩，立刻增加 tZoom（向外拉远缩小镜头）
-              tZoom -= dSpan * 120.0; // 乘以 120 的阻尼系数，转化为视角的物理推拉速度
-              
-              // 设定物理极限防穿模：最近推到 2.5 看地表，最远退到 60 统览整个大星系
-              tZoom = Math.max(2.5, Math.min(60.0, tZoom)); 
-            }
-          }
-          window._lastSpan = spanDist; // 更新当前跨度给下一帧做差值运算
-
-          if (fingers.isOpen) {
-            document.getElementById('st-mode').textContent = '🖐️ 动态推近...';
-          } else if (fingers.isFist && focus !== 3) {
-            document.getElementById('st-mode').textContent = '✊ 动态拉远...';
-          } else {
-            document.getElementById('st-mode').textContent = '✋ 识别到单指,向对应方向停留可切换星球';
-          }
-          
-          // 如果手一松开，立刻收起并关闭信息卡片
-          
-          // 如果手一松开，立刻收起并关闭信息卡片
-          if(window._cardActive) {
-             const c = document.getElementById('planet-card');
-             c.classList.remove('show');
-             window._cardActive=false;
-             setTimeout(()=> { if(!window._cardActive) c.style.display='none'; }, 300);
-          }
-        }
-
-        if(focus===3 && fingers.isFist && !satActive){
-          if(!satOpenTimer) satOpenTimer=setTimeout(()=>{openSatMap();satOpenTimer=null;},800);
-          document.getElementById('st-mode').textContent = '握拳：部署卫星网...';
-        }else{ clearTimeout(satOpenTimer); satOpenTimer=null; }
-        
-        if((fingers.isOpen || (fingers.isFist&&focus!==3)) && Math.abs(wrist.x-0.5)>0.05) tRY=(wrist.x-0.5)*Math.PI*2.2;
-      }
-
-      handCtx.clearRect(0,0,innerWidth,innerHeight); drawHandSkeleton(lm);
-      
+      const now = Date.now();
+      handleHandLandmarks(r.multiHandLandmarks?.[0] || null, now);
       fpsCount++;
       if (now - fpsStart >= 1000) { document.getElementById('st-cam').textContent='开启 (FPS:'+fpsCount+')'; fpsCount=0; fpsStart=now; }
     });
@@ -1404,6 +1799,7 @@ function closeSatMap(){
 //  主渲染循环
 // ──────────────────────────────────────────────────────
 const _tmpLabel = new THREE.Vector3(), _tmpProj = new THREE.Vector3();
+const _camFwd = new THREE.Vector3(), _toLbl = new THREE.Vector3();
 
 // ── 帧率无关：所有天体增量以 60fps 为基准归一化，避免高刷屏(120/144Hz)整体加速 ──
 let _lastFrameMs = 0;
@@ -1428,7 +1824,13 @@ function softCapStep(step){
 }
 window.__FRAME__ = () => ({dtScale: window.__lastDt || 1});
 // 只读调试引用：供 .workbuddy/qa 下的验证脚本逐帧采样，不参与渲染逻辑
-window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus(){ return focus; } };
+window.__SOLAR__ = { scene: ssS, cam: ssCam, renderer: ssRn, objs: ssObjs, planets: P,
+  labels: planetLabels,   // 只读调试句柄：逐帧抖动回归要读标签位置
+  get focus(){ return focus; } };
+window.__DEEP__ = DEEP;
+// 深空建模的渲染时机与压迫感遮罩（两者都在动画主循环里逐帧更新）
+let _pendingDeep = null;
+const _pressureEl = document.getElementById('void-pressure');
 (function anim(){
   requestAnimationFrame(anim);
   const nowMs = performance.now();
@@ -1439,6 +1841,24 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
   dt = smoothDt(dt);
   window.__lastDt = dt;
   window.__lastRawDt = rawDt;
+
+  // ✊ 握拳推近：pushLevel 是「压迫感」的唯一来源 ——
+  //    镜头 FOV 收紧（55°→45.5°）+ 全局暗角遮罩 + 深空天体的光流加速，共同构成"被推近"的体感。
+  //    FOV 变化会直接改变投影半径，卡片避让用的 planetScreenR() 会自动跟随，不需要另做补偿。
+  pushTarget = window._pushTarget || 0;
+  const pushK = 1 - Math.pow(0.88, dt);
+  pushLevel += (pushTarget - pushLevel) * pushK;
+  if (pushTarget === 0 && pushLevel < 0.004) pushLevel = 0;
+  // 缩放目标的插值放在 rAF 里：摄像头 30fps 的离散回调不再把镜头拉成阶梯
+  // 不能加 camOn 条件：QA 用合成关键点驱动手势时并没有真的开摄像头，
+  // 但手势语义仍应生效。_zoomTarget 在 focusPlanet 里同步，键鼠模式不会被带着漂。
+  if (!isPinching && window._zoomTarget !== undefined) {
+    tZoom += (window._zoomTarget - tZoom) * (1 - Math.pow(0.90, dt));
+  }
+  const fovWant = 55 - 9.5 * pushLevel;
+  if (Math.abs(ssCam.fov - fovWant) > 0.02) { ssCam.fov = fovWant; ssCam.updateProjectionMatrix(); }
+  if (_pressureEl) _pressureEl.style.opacity = (pushLevel * 0.95).toFixed(3);
+
   ssObjs[0].mesh.rotation.y = (ssObjs[0].mesh.rotation.y + P[0].rot * speed * dt) % (Math.PI * 2);
 
   // 更新 GPU shader uniforms
@@ -1521,19 +1941,55 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
     // 在本帧 render 时用的是更新后的新相机。相机静止时两者一致，切换星球时相机快速移动，
     // 标签就会慢一帧（实测偏差最高 57px），肉眼看到的就是「名字抖动 / 有虚影”。
   });
+
+  // 🖐️ 转拳旋转：手转过的角度直接叠加到当前目标上 ——
+  //    行星 = 本体自转；黑洞 = 绕它转视角（吸积盘朝向随之变化）；星云 = 整体转动。
+  //    用"位置式"而不是"速度式"，转多少跟多少，手停就停，没有惯性漂移。
+  if (spinAccum !== 0) {
+    const sA = Math.max(-0.42, Math.min(0.42, spinAccum));
+    if (isDeep(focus)) deepOf(focus).obj.spin(sA);
+    else {
+      const m = ssObjs[focus] && ssObjs[focus].mesh;
+      if (m) m.rotation.y = (m.rotation.y + sA) % (Math.PI * 2);
+    }
+    spinAccum = 0;
+  }
+
   const time = performance.now() * 0.0005;
-  if (!camOn) {
+  const fp = focusPos(focus);
+  const tx = fp.x, ty = fp.y, tz = fp.z;
+
+  if (isDeep(focus)) {
+    // 🌌 深空档案：3D 建模前固定机位凝视，握拳时把镜头推进（视界/柱体压满画面）。
+    //   不用侧舷伴飞（深空目标没有公转），offset 只有正前方的距离。
+    const d = deepOf(focus);
+    const baseDist = Math.max(d.zoom * 0.85, Math.min(tZoom, d.zoom * 2.2));
+    // 推近幅度按目标区分：黑洞由着色器自己缩放，可以贴很近；
+    // 星云是体积粒子云，镜头再进就成"沙尘暴"了 —— 0.22 是"能感到逼近、
+    // 又不至于把柱体糊成一片"的折中（0.12 时代几乎看不出推近，0.34 会糊墙）。
+    const pushK = (d.kind === 'blackhole') ? 0.34 : 0.14;
+    const dist = baseDist * (1 - pushK * pushLevel) * (window._cardActive ? 0.90 : 1) * (innerWidth < 700 ? 1.45 : 1);
+    followPlanet(tx, ty, tz, 0, 0.4 + pushLevel * 0.15, dist, 0.05);
+    d.fade += (1 - d.fade) * 0.05;
+    d.obj.setOpacity(d.fade);
+    d.obj.setPush(pushLevel);
+    d.material.opacity = d.fade;
+    _pendingDeep = d;                 // 真正的 raymarch 放到本帧相机矩阵刷新后执行
+    DEEP.forEach(x => {
+      if (x === d) return;
+      x.fade += (0 - x.fade) * 0.08;
+      x.obj.setOpacity(x.fade); x.material.opacity = x.fade;
+    });
+    projectCard(tx, ty, tz);
+  } else if (!camOn) {
     // 🌌 1. 非手势默认模式 — 【侧舷伴飞：终极防穿模】
-    const fObj = ssObjs[focus];
-    const tx = fObj.mesh.position.x, ty = fObj.mesh.position.y, tz = fObj.mesh.position.z;
-    
+    DEEP.forEach(x => { x.fade += (0 - x.fade) * 0.08; x.obj.setOpacity(x.fade); x.material.opacity = x.fade; });
     // 💡 核心破局点：不再从星球的正前后方看，而是将相机放在轨道“侧后方”（-1.57 弧度即 -90度）
     // 这样太阳永远在画面左/右侧发光，既能看到绝美昼夜交界线，而且往后退多远都不会撞到太阳！
-    const camAngle = camAzimuth(focus, now); 
-    
+    const camAngle = camAzimuth(focus, now);
     // 窄屏的水平视角小得多，同样距离下球体会撑满整屏；按屏宽补偿，保证行星整体可见
     const narrowK = innerWidth < 700 ? 1.5 : 1;
-    const lockDist = tZoom * 0.82 * narrowK;
+    const lockDist = tZoom * 0.82 * narrowK * (1 - 0.34 * pushLevel);
     followPlanet(tx, ty, tz,
       Math.cos(camAngle) * lockDist,
       tZoom * 0.42 * narrowK,
@@ -1543,14 +1999,12 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
     projectCard(tx, ty, tz);
   } else {
     // 🌌 2. 手势控制模式
-    const f = ssObjs[focus];
-    const tx = f.mesh.position.x, ty = f.mesh.position.y, tz = f.mesh.position.z;
-    
+    DEEP.forEach(x => { x.fade += (0 - x.fade) * 0.08; x.obj.setOpacity(x.fade); x.material.opacity = x.fade; });
     if (isPinching) {
       // 🔒 状态 A：双指捏合状态
-      const lockDist = (planetZoomDist[f.type] || 5.0) * 0.65; 
+      const lockDist = focusZoom(focus) * 0.65 * (1 - 0.30 * pushLevel);
       const camAngle = camAzimuth(focus, now);   // 同样采用侧舷伴飞，但不再跟着公转甩镜头
-      
+
       followPlanet(tx, ty, tz,
         Math.cos(camAngle) * lockDist,
         lockDist * 0.25,
@@ -1559,14 +2013,15 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
       projectCard(tx, ty, tz);
     } else {
       // 🔓 状态 B：手势松开（解除捏合）— 平滑退回宏观大视角
-      ssRY += (tRY - ssRY) * 0.09; 
+      ssRY += (tRY - ssRY) * 0.09;
       ssZoom += (tZoom - ssZoom) * 0.12;
-      
+
       const pitchY = (focus === 0) ? ssZoom * 0.55 : ssZoom * 0.42;
       // 这里的 baseAngle 极为关键！退远时也保持侧向，保证倒车绝对安全
       const baseAngle = camAzimuth(focus, now) + ssRY;
-      // 同上：绕行半径不得超过轨道半径的 0.58，否则退远的过程中会扫过太阳
-      const rideR = Math.min(ssZoom, (P[focus].d || 30) * 0.58);
+      // 同上：绕行半径既要 ≤ 轨道半径 0.58，也要保证离太阳至少 5.0（日冕外径 4.03）
+      const orbitR = Math.hypot(tx, tz) || (P[focus].d || 30);
+      const rideR = Math.min(ssZoom * (1 - 0.34 * pushLevel), orbitR * 0.58, Math.max(1.0, orbitR - 5.0));
       followPlanet(tx, ty, tz,
         Math.cos(baseAngle) * rideR,
         pitchY - ty,
@@ -1577,29 +2032,78 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
       projectCard(tx, ty, tz);
     }
   }
+  // 切站飞行：把相机从起点送到本帧 followPlanet 算出的机位。
+  // 必须先克隆终点——lerpVectors 写的就是 ssCam.position 本身，直接传它会在
+  // 写 x 之后读到新 x，插值结果会歪。
+  if (_fly) {
+    const u = Math.min(1, (nowMs - _fly.start) / _fly.dur);
+    if (u >= 1) _fly = null;
+    else {
+      const dest = ssCam.position.clone();
+      const e = u * u * (3 - 2 * u);
+      ssCam.position.lerpVectors(_fly.from, dest, e);
+    }
+  }
+
   // 🌊 宇宙悬浮微动 — 风暴不再抖镜头，仅由红色日冕粒子表达异变（见上方日冕动画）
   // ⚠️ 微动必须发生在 lookAt 之后「再补一次 lookAt」：否则相机位置每帧都被推走、
   //    朝向却停留在上一帧的位置算出来的角度，等于让整个画面以帧率频率来回错位
   //    —— 这就是"星球看起来在剧烈抖"的根源之一。
-  ssCam.position.x += Math.sin(time) * 0.005;
-  ssCam.position.y += Math.cos(time * 0.8) * 0.003;
+  // 悬浮微动按相机到目标的距离衰减：远景保留"活着"的感觉，
+  // 近景（水星 zoom 1.5）必须钉死，否则 0.005 单位的摆动会被放大成可见抖动。
+  const _microK = Math.max(0.06, Math.min(1, ssCam.position.distanceTo(window._camTarget) / 14));
+  ssCam.position.x += Math.sin(time) * 0.005 * _microK;
+  ssCam.position.y += Math.cos(time * 0.8) * 0.003 * _microK;
   ssCam.lookAt(window._camTarget);
 
   // 🏷️ 行星标签：必须在相机【本帧】更新完、且矩阵同步后再投影。
   // 相机 lookAt/位移后 matrixWorldInverse 尚未刷新，这里手动 updateMatrixWorld() 一次，
   // 保证标签和星球本体用【同一帧】的相机矩阵 —— 切换星球时不再慢一帧、不再有虚影。
   ssCam.updateMatrixWorld();
-  ssObjs.forEach((o, i) => {
+
+  // 🌌 深空建模的离屏 raymarch 放在这里：本帧相机位置/朝向已经定稿，
+  //    显示平面贴合相机才不会慢一帧（慢一帧会在推近时看到轻微错位）。
+  if (_pendingDeep) {
+    _pendingDeep.obj.frame(ssCam, ssRn, now, dt / 60);
+    _pendingDeep = null;
+  }
+  // 统一遍历 11 站：0..8 行星（标签抬头顶）+ 9/10 深空影像（标签贴影像下缘）。
+  for (let i = 0; i < STOP_N; i++) {
     const lbl = planetLabels[i];
-    if (!lbl) return;
-    const labelPos = _tmpLabel.copy(o.mesh.position);
-    const radius = P[i] ? P[i].s : 1.0;
-    labelPos.y += radius * 1.3 + 0.15;
-    const wp = labelPos.project(ssCam);
-    const lx = (wp.x * .5 + .5) * innerWidth;
-    const ly = (-wp.y * .5 + .5) * innerHeight;
-    // 外层只定位（无 transition → 跟随相机零滞后）；toFixed(1) 抑制亚像素抖动
-    lbl.style.transform = `translate3d(${lx.toFixed(1)}px,${ly.toFixed(1)}px,0)`;
+    if (!lbl) continue;
+    const labelPos = _tmpLabel.copy(focusPos(i));
+    const radius = focusSize(i);
+    // 深空目标体积大，标签压到下缘之外，避免正好盖在视界/柱体上
+    labelPos.y += isDeep(i) ? -(radius * 1.35) : (radius * 1.3 + 0.15);
+    // ⚠️ 只判 wp.z 不够：相机背后的点 w<0，project 后仍可能得到 |z|<1 的假坐标，
+    //    但 x/y 已经是 ±30 万像素。先用相机朝向做真正的可见性判定。
+    _camFwd.set(0, 0, -1).applyQuaternion(ssCam.quaternion);
+    const inFront = _toLbl.copy(labelPos).sub(ssCam.position).dot(_camFwd) > 0.5;
+    let lx = 0, ly = 0, ok = false;
+    if (inFront) {
+      const wp = labelPos.project(ssCam);
+      lx = (wp.x * .5 + .5) * innerWidth;
+      ly = (-wp.y * .5 + .5) * innerHeight;
+      // 极近距离擦过标签时投影仍会爆掉，额外按视口倍数兜底
+      // 只给"真的在屏幕附近"的标签上可见度：旧版放到 4 倍视口，
+      // 结果 x=±5000px 的标签也顶着 0.55 透明度每帧跳上千像素（看不见但白算）。
+      ok = wp.z <= 1 && isFinite(lx) && isFinite(ly)
+           && Math.abs(lx) <= innerWidth * 1.2 && Math.abs(ly) <= innerHeight * 1.2;
+    }
+    lbl.__offscreen = !ok;
+    if (ok) {
+      lbl.__offscreenSet = false;
+      // 外层只定位（无 transition → 跟随相机零滞后）；toFixed(1) 抑制亚像素抖动
+      lbl.style.transform = `translate3d(${lx.toFixed(1)}px,${ly.toFixed(1)}px,0)`;
+    } else {
+      // ⚠️ 不能立刻把坐标钉到画外：内层还有 0.3s 淡出，位置瞬移会让标签
+      //    在淡出过程中"闪一下"飞走。等它完全透明后再收。
+      const op = parseFloat(lbl.__inner.style.opacity || '1');
+      if (op < 0.02 && !lbl.__offscreenSet) {
+        lbl.style.transform = 'translate3d(-9999px,-9999px,0)';
+        lbl.__offscreenSet = true;
+      }
+    }
 
     const isFocus = (i === focus);
     if (lbl.__focus !== isFocus) {
@@ -1614,12 +2118,13 @@ window.__SOLAR__ = { scene: ssS, cam: ssCam, objs: ssObjs, planets: P, get focus
         : `0 0 3px ${tc}55, 0 0 6px ${tc}22`;
       inner.style.fontWeight = isFocus ? '900' : '400';
     }
-    // 卡片激活时隐藏聚焦标签（卡片已显示星球名，避免重叠）
+    // 卡片激活时隐藏聚焦标签（卡片已显示星球名，避免重叠）；
+    // 深空标签只在自己聚焦时显示——否则看行星时，远处的"创生之柱/黑洞"标签会飘在星野里。
     const vis = isFocus
-      ? ((wp.z > 1 || window._cardActive) ? '0' : '1')
-      : (wp.z > 1 ? '0' : '.55');
+      ? ((lbl.__offscreen || window._cardActive) ? '0' : '1')
+      : ((lbl.__offscreen || isDeep(i)) ? '0' : '.55');
     if (lbl.__vis !== vis) { lbl.__vis = vis; lbl.__inner.style.opacity = vis; }
-  });
+  }
 
   // 💫 流星生命週期管理 — 風暴期間觸發率暴增至 20%
   const spawnChance = window._isStormActive ? 0.20 : 0.012;
@@ -1659,8 +2164,8 @@ document.addEventListener('keydown', e => {
   if (satActive) return;
   // 输入控件聚焦时不劫持方向键，保留滑块的原生键盘操作
   if (e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
-  if (e.key === 'ArrowLeft')  { e.preventDefault(); focusPlanet((focus-1+P.length)%P.length); }
-  if (e.key === 'ArrowRight') { e.preventDefault(); focusPlanet((focus+1)%P.length); }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); focusPlanet((focus-1)%STOP_N); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); focusPlanet((focus+1)%STOP_N); }
   if (e.key === '+' || e.key === '=') { speed = Math.min(5, speed + 0.2); document.getElementById('speed-label').textContent = speed.toFixed(1)+'x'; }
   if (e.key === '-') { speed = Math.max(0.1, speed - 0.2); document.getElementById('speed-label').textContent = speed.toFixed(1)+'x'; }
   if (e.key === '0') { focusPlanet(3); }  // 地球

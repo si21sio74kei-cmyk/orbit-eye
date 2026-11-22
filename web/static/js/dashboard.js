@@ -444,11 +444,23 @@ const rn = new THREE.WebGLRenderer({antialias:true,alpha:true}); rn.setSize(W,H)
 const ctrl = new THREE.OrbitControls(cam,rn.domElement); ctrl.enableDamping=true; ctrl.autoRotate=false; ctrl.enablePan=false; ctrl.minDistance=2.5; ctrl.maxDistance=6; ctrl.target.set(0,0,0);
 const sg = new THREE.SphereGeometry(8,64,64);
 const sm = new THREE.ShaderMaterial({vertexShader:'varying vec3 p;void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'precision highp float;varying vec3 p;float r(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,45.5432)))*43758.5453);}void main(){float b=smoothstep(.997,1.,r(floor(p*200.)));gl_FragColor=vec4(vec3(.5,.8,1.)*b,b);}',side:THREE.BackSide,transparent:true});  sc.add(new THREE.Mesh(sg,sm));
-const eg = new THREE.SphereGeometry(1.4,64,64), em = new THREE.MeshPhongMaterial({color:0x113355});
-const earth = new THREE.Mesh(eg,em); sc.add(earth);  new THREE.TextureLoader().load('/static/textures/earth_atmos_2048.jpg', tex => {em.map=tex;em.color.set(0xffffff);em.needsUpdate=true;}, undefined, ()=>{});
+const eg = new THREE.SphereGeometry(1.4,64,64), em = new THREE.MeshPhongMaterial({color:0x113355,shininess:18,specular:0x3a5a7a});
+const earth = new THREE.Mesh(eg,em); sc.add(earth);
+// 接入本地已有的三张 NASA 真实纹理：颜色 + 法线(地貌凹凸) + 高光(海洋反光)。
+// 之前只用了颜色贴图，法线/高光/云层都闲置 → 地球看着像平的塑料球。
+const _tl = new THREE.TextureLoader();
+_tl.load('/static/textures/earth_atmos_2048.jpg', tex => {em.map=tex;em.color.set(0xffffff);em.needsUpdate=true;}, undefined, ()=>{});
+_tl.load('/static/textures/earth_normal_2048.jpg', tex => {em.normalMap=tex;em.normalScale=new THREE.Vector2(0.85,0.85);em.needsUpdate=true;}, undefined, ()=>{});
+_tl.load('/static/textures/earth_specular_2048.jpg', tex => {em.specularMap=tex;em.needsUpdate=true;}, undefined, ()=>{});
 const gg = new THREE.SphereGeometry(1.43,64,64);
-const gm = new THREE.ShaderMaterial({vertexShader:'varying vec3 n;varying vec3 p;void main(){n=normalize(normalMatrix*normal);p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'precision highp float;varying vec3 n;varying vec3 p;void main(){float i=pow(.65-dot(n,vec3(0,0,1)),3.);gl_FragColor=vec4(0,.6,1.,1.)*i*.4;}',side:THREE.FrontSide,transparent:true,blending:THREE.AdditiveBlending});  sc.add(new THREE.Mesh(gg,gm));  sc.add(new THREE.AmbientLight(0x334466,2.5));
-const sl = new THREE.DirectionalLight(0xffffff,2); sl.position.set(5,1,3); sc.add(sl);
+const gm = new THREE.ShaderMaterial({vertexShader:'varying vec3 n;varying vec3 p;void main(){n=normalize(normalMatrix*normal);p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'precision highp float;varying vec3 n;varying vec3 p;void main(){float i=pow(.65-dot(n,vec3(0,0,1)),3.);gl_FragColor=vec4(0,.6,1.,1.)*i*.4;}',side:THREE.FrontSide,transparent:true,blending:THREE.AdditiveBlending});  sc.add(new THREE.Mesh(gg,gm));  sc.add(new THREE.AmbientLight(0x334466,1.2));
+const sl = new THREE.DirectionalLight(0xffffff,2.2); sl.position.set(5,1,3); sc.add(sl);
+// 云层独立成球，缓慢自转（比地表略快）。半径 1.412 夹在地表 1.4 与大气 1.43 之间。
+const cloudMat=new THREE.MeshPhongMaterial({transparent:true,opacity:0.40,depthWrite:false});
+const cloudMesh=new THREE.Mesh(new THREE.SphereGeometry(1.412,64,64),cloudMat);
+cloudMesh.renderOrder=1;  // 在标记点(renderOrder=4)之下绘制，背面透视的红/绿点不被云层压暗
+sc.add(cloudMesh);
+_tl.load('/static/textures/earth_clouds_1024.png', tex => {cloudMat.map=tex;cloudMat.needsUpdate=true;}, undefined, ()=>{});
 // 标记点关闭深度测试：背面的红/绿点也能透视看到，始终「方便查看」
 const mg = new THREE.Group(); mg.position.copy(llv(OBS.lat,OBS.lon,1.44));
 const mgDot=new THREE.Mesh(new THREE.SphereGeometry(.032,16,16),new THREE.MeshBasicMaterial({color:0xf87171,depthTest:false,transparent:true})); mgDot.renderOrder=4; mg.add(mgDot); sc.add(mg);
@@ -458,11 +470,14 @@ const igDot=new THREE.Mesh(new THREE.SphereGeometry(.026,12,12),new THREE.MeshBa
 const al = new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial({color:0x8fd4ff})); sc.add(al);
 (function anim(){
   if(document.hidden || curPg!==0){ setTimeout(anim, 120); return; }
-  requestAnimationFrame(anim); ctrl.update(); rn.render(sc,cam);
+  requestAnimationFrame(anim); ctrl.update();
+  // 云层缓慢自转：reduced-motion 下静止（无障碍）
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches) cloudMesh.rotation.y += 0.00022;
+  rn.render(sc,cam);
 })();
 window._resumeGlobe = () => { if(!GR) return; const ct=document.getElementById('globe-ct'); const w=ct.clientWidth, h=ct.clientHeight; if(w<10||h<10){setTimeout(()=>window._resumeGlobe(),100);return;} GR.cam.aspect=w/h; GR.cam.updateProjectionMatrix(); GR.rn.setSize(w,h); };  
 window.addEventListener('resize',()=>{
-const w=ct.clientWidth,h=ct.clientHeight;cam.aspect=w/h;cam.updateProjectionMatrix();rn.setSize(w,h);});  GR = {sc,earth,mg,ig,al,cam,ctrl,rn};}
+const w=ct.clientWidth,h=ct.clientHeight;cam.aspect=w/h;cam.updateProjectionMatrix();rn.setSize(w,h);});  GR = {sc,earth,mg,ig,al,cam,ctrl,rn,cloudMesh};}
 function updGlobe(lat,lon,dist) {  if(!GR) return;
 const {ig,al,mg} = GR;
 // 绿点：ISS 实时经纬度，精确贴合球面（半径 1.44）

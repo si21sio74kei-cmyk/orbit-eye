@@ -36,18 +36,25 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
 .corner::before{left:0;top:0;border-left:1px solid var(--border-strong);border-top:1px solid var(--border-strong);border-radius:var(--radius) 0 0 0;}
 .corner::after{right:0;bottom:0;border-right:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);border-radius:0 0 var(--radius) 0;}
 
-/* ── HUD 指令条：文字编号，替代 emoji 串 ─────────────── */
-#hud-top{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:10;
-  display:flex;align-items:center;gap:0;max-width:calc(100vw - 40px);
-  background:var(--panel);border:1px solid var(--border);padding:5px 8px;
-  font-family:var(--mono);font-size:10px;letter-spacing:.5px;border-radius:9px;
+/* ── HUD 指令条：一排手势语义，当前识别到的那一项实时高亮 ─────────────── */
+#hud-top{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:10;
+  display:flex;align-items:center;gap:0;max-width:calc(100vw - 32px);
+  background:var(--panel);border:1px solid var(--border);padding:6px 10px;
+  font-family:var(--mono);font-size:13px;letter-spacing:.6px;border-radius:10px;
   backdrop-filter:blur(18px);color:var(--label);white-space:nowrap;overflow-x:auto;
   scrollbar-width:none;box-shadow:0 12px 36px rgba(0,0,0,.34);}
 #hud-top::-webkit-scrollbar{display:none;}
-#hud-top b{font-weight:400;color:var(--primary);opacity:.85;margin-right:4px;}
-#hud-top em{font-style:normal;color:var(--text);padding:0 11px;}
-#hud-top em+em{border-left:1px solid var(--border);}
-#hud-top .brand{font-family:var(--display);font-weight:600;letter-spacing:2px;color:var(--accent);padding:0 12px 0 6px;}
+#hud-top b{font-weight:500;color:var(--primary);opacity:.9;margin-right:6px;}
+#hud-top .gesture{color:var(--text);padding:4px 12px;border-radius:5px;
+  transition:background-color .16s ease,color .16s ease,box-shadow .16s ease;}
+#hud-top .gesture+.gesture{border-left:1px solid var(--border);border-radius:0;}
+#hud-top .gesture.live{background:rgba(108,182,232,.16);color:#eaf6ff;
+  box-shadow:inset 0 -1px 0 var(--accent);}
+#hud-top .gesture.live b{opacity:1;color:var(--accent);}
+#hud-top .brand{font-family:var(--display);font-size:14px;font-weight:600;letter-spacing:2px;color:var(--accent);padding:0 14px 0 6px;}
+@media (prefers-reduced-motion: reduce){
+  #hud-top .gesture{transition:none;}
+}
 
 /* ── 控制区 ─────────────────────────────────────────── */
 #ctrl-panel{position:fixed;top:18px;left:18px;z-index:10;display:flex;flex-direction:column;gap:8px;}
@@ -103,6 +110,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .pc-source{padding:5px 14px 6px;border-top:1px solid var(--border);font-family:var(--mono);
   font-size:8.5px;letter-spacing:.6px;color:var(--dim);text-align:right;}
+.pc-au{color:var(--primary);opacity:.82;margin-right:8px;}
 .pc-loading-line{padding:18px 16px 20px;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--dim);}
 .pc-loading-line span{display:block;position:relative;overflow:hidden;}
 .pc-loading-line span::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
@@ -208,10 +216,10 @@ canvas{position:fixed;inset:0;z-index:0;}
 
 /* ── 窄屏适配 ────────────────────────────────────────── */
 @media(max-width:760px){
-  #hud-top{top:10px;left:10px;right:10px;transform:none;max-width:none;font-size:9px;}
-  #hud-top em{padding:0 6px;}
-  #hud-top b{margin-right:2px;}
-  #hud-top .brand{padding:0 7px 0 3px;letter-spacing:1px;}
+  #hud-top{top:8px;left:8px;right:8px;transform:none;max-width:none;font-size:10.5px;}
+  #hud-top .gesture{padding:3px 7px;}
+  #hud-top b{margin-right:3px;}
+  #hud-top .brand{font-size:12px;padding:0 8px 0 3px;letter-spacing:1px;}
   #ctrl-panel{top:auto;bottom:12px;left:10px;flex-direction:row;flex-wrap:wrap;max-width:calc(100vw - 20px);gap:6px;}
   #ctrl-panel .ctrl-btn{font-size:10px;padding:8px 11px 8px 24px;}
   #ctrl-panel .ctrl-btn::before{left:11px;}
@@ -276,4 +284,41 @@ canvas{position:fixed;inset:0;z-index:0;}
 body::before{background:radial-gradient(ellipse at 50% 45%,transparent 46%,rgba(3,6,12,.36) 100%);}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;}
+}
+
+/* ═══════════════════════════════════════════════════
+   深空档案 · 星际飞跃过场：星线拉伸 + 蓝白闪光（克制的青蓝单色）
+   ═══════════════════════════════════════════════════ */
+#warp-overlay{position:fixed;inset:0;z-index:28;pointer-events:none;opacity:0;overflow:hidden;}
+#warp-overlay.run{animation:warpCycle 1.5s var(--ease) both;}
+.warp-lines{position:absolute;inset:-30%;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,
+    transparent 0deg 6deg,rgba(140,208,245,.22) 6.2deg 6.5deg,transparent 6.7deg 13deg);
+  transform:scale(.15);opacity:0;}
+#warp-overlay.run .warp-lines{animation:warpLines 1.3s cubic-bezier(.2,.7,.2,1) both;}
+.warp-flash{position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 50%,rgba(190,228,252,.92) 0%,rgba(108,182,232,.34) 24%,transparent 62%);
+  transform:scale(.2);opacity:0;}
+#warp-overlay.run .warp-flash{animation:warpFlash 1.5s ease-out both;}
+@keyframes warpCycle{0%{opacity:0}12%{opacity:1}78%{opacity:1}100%{opacity:0}}
+@keyframes warpLines{0%{transform:scale(.12);opacity:0}30%{opacity:.9}100%{transform:scale(2.6);opacity:0}}
+@keyframes warpFlash{0%{transform:scale(.2);opacity:0}22%{opacity:.9}100%{transform:scale(3.2);opacity:0}}
+
+/* ═══════════════════════════════════════════════════
+   ✊ 握拳推近 · 压迫感遮罩
+   只做两件事：四角压暗（视野收窄的心理暗示）+ 中心一圈极淡的暖色回光。
+   放在 canvas 之上、HUD 之下，pointer-events 全关，绝不挡交互。
+   透明度由 JS 每帧按 pushLevel 直写，不走 transition（否则推近会滞后）。
+   ═══════════════════════════════════════════════════ */
+#void-pressure{position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;
+  background:
+    radial-gradient(ellipse 62% 58% at 50% 50%,
+      rgba(0,0,0,0) 42%, rgba(3,6,12,.42) 74%, rgba(1,3,7,.72) 100%),
+    radial-gradient(ellipse 34% 30% at 50% 50%,
+      rgba(255,176,104,.05) 0%, rgba(255,140,60,.015) 55%, rgba(0,0,0,0) 78%);
+  mix-blend-mode:normal;
+  will-change:opacity;}
+@media (prefers-reduced-motion: reduce){
+  /* 关掉动效不等于关掉反馈：遮罩仍随手势变化，只是不参与任何动画 */
+  #void-pressure{transition:none;}
 }

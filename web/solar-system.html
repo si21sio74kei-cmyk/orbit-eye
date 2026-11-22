@@ -13,6 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js"></script>
 <script src="/static/js/planet_shaders.js"></script>
+<script src="/static/js/deep_space.js"></script>
 <link rel="stylesheet" href="/static/css/solar.css">
 </head>
 <body>
@@ -21,9 +22,11 @@
 <video id="webcam-pip" playsinline autoplay muted></video>
 <canvas id="hand-overlay"></canvas>
 
-<div id="hud-top"><span class="brand">DSM·ATLAS</span><em><b>01</b>边缘切星</em><em><b>02</b>捏合信息卡</em><em><b>03</b>张手近观</em><em><b>04</b>握拳卫星网</em><em><b>05</b>小行星带</em><em><b>06</b>月球</em></div>
+<nav id="hud-top" aria-label="手势操作提示"><span class="brand">DSM·ATLAS</span><span class="gesture" data-gesture="edge"><b>01</b>边缘切星</span><span class="gesture" data-gesture="pinch"><b>02</b>捏合信息卡</span><span class="gesture" data-gesture="fist"><b>03</b>握拳推近</span><span class="gesture" data-gesture="roll"><b>04</b>转拳/握拳平移旋转</span><span class="gesture" data-gesture="open"><b>05</b>张手拉远</span><span class="gesture" data-gesture="two"><b>06</b>双指卫星网</span><span class="gesture" data-gesture="warp"><b>07</b>越过海王星→深空飞跃</span></nav>
+<div id="void-pressure" aria-hidden="true"></div>
 <div id="planet-card"></div>
 <div id="swipe-alert"></div>
+<div id="warp-overlay" aria-hidden="true"><div class="warp-lines"></div><div class="warp-flash"></div></div>
 <div id="hover-zone-left"></div>
 <div id="hover-zone-right"></div>
 
@@ -42,7 +45,7 @@
 <div id="status-panel" class="pnl corner">
   <div class="pnl-in">
     <div class="hd">Gesture Telemetry · 手势状态</div>
-    <div class="row"><span class="k">当前行星</span><span class="v" id="st-planet" style="font-size:12px;">太阳</span></div>
+    <div class="row"><span class="k">当前目标</span><span class="v" id="st-planet" style="font-size:12px;">太阳</span></div>
     <div class="row"><span class="k">手势模式</span><span class="v" id="st-mode">等待输入</span></div>
     <div class="row"><span class="k">手掌开合</span><span class="v" id="st-open">--</span></div>
     <div class="row"><span class="k">摄像头</span><span class="v" id="st-cam">关闭</span></div>
@@ -56,7 +59,7 @@
   </div>
   <div style="flex:1;display:flex;">
     <div id="sat-globe"></div>
-    <div id="sat-list" style="color:var(--dim);">手势：食指悬停左边缘可退出<br>全张开=放大旋转 | 握拳=缩小</div>
+    <div id="sat-list" style="color:var(--dim);">手势：食指悬停左边缘可退出<br>握拳=推近 | 张手=拉远 | 左右滑动换视角</div>
   </div>
 </div>
 
